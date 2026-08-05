@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/* Redefine the `dark:` variant to be class-driven (`.dark` on <html>) instead of
+   Tailwind's default `prefers-color-scheme` media query, so the in-app toggle controls it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100;
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+/* Remap Tailwind's own neutral palette CSS variables inside `.dark`. Since every
+   existing `bg-white` / `text-slate-800` / `border-slate-200` utility class across the
+   app resolves through these variables, this single block re-themes the whole app
+   without needing dark: variants sprinkled on every page. Saturated/semantic colors
+   (indigo, emerald, amber, rose) are intentionally left untouched. */
+.dark {
+  color-scheme: dark;
+  --color-white: #1e293b;
+  --color-slate-50: #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #f4f6f8;
+  color: #1f2937;
+  overscroll-behavior-y: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dark body {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+input[type='range'] {
+  accent-color: #6366f1;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-print-area,
+  .report-print-area * {
+    visibility: visible;
+  }
+  .report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
