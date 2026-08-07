@@ -281,7 +281,7 @@ export interface InvestmentHolding {
   expectedReturnPct: number;
 }
 
-export const LIFE_EVENT_TYPES = ['Income Change', 'Career Break', 'Retrenchment', 'New Dependant', 'Other'] as const;
+export const LIFE_EVENT_TYPES = ['Income Change', 'Career Break', 'Retrenchment', 'Critical Illness', 'New Dependant', 'Other'] as const;
 export type LifeEventType = (typeof LIFE_EVENT_TYPES)[number];
 
 export interface LifeEvent {

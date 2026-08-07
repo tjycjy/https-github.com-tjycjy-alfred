@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Link } from 'react-router-dom';
 import { getFinancialProfile, saveFinancialProfile } from '../../db/financialProfiles';
 import { getFactFindForClient } from '../../db/factfind';
@@ -48,8 +48,11 @@ export default function FinancialHealthTab() {
   const [section, setSection] = useState<SectionId>('overview');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutosave = useRef(false);
 
   useEffect(() => {
+    skipNextAutosave.current = true;
     Promise.all([
       getFinancialProfile(client.id),
       getFactFindForClient(client.id),
@@ -62,14 +65,28 @@ export default function FinancialHealthTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
-  if (!profile || !factFind || !portfolio) return <p className="text-slate-400">Loading…</p>;
+  // Autosave shortly after any edit, so switching sections or navigating away never
+  // loses data the way requiring an explicit Save click did.
+  useEffect(() => {
+    if (!profile) return;
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false;
+      return;
+    }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      await saveFinancialProfile(profile);
+      setSaving(false);
+      setSavedAt(Date.now());
+    }, 800);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
-  const save = async () => {
-    setSaving(true);
-    await saveFinancialProfile(profile);
-    setSaving(false);
-    setSavedAt(Date.now());
-  };
+  if (!profile || !factFind || !portfolio) return <p className="text-slate-400">Loading…</p>;
 
   const totalMonthlyIncome = profile.incomeItems.reduce((s, i) => s + i.amount, 0);
   const totalMonthlyExpenses = profile.expenseItems.reduce((s, e) => s + e.amount, 0);
@@ -88,14 +105,22 @@ export default function FinancialHealthTab() {
   const overallTarget = combinedCoverage.reduce((s, c) => s + c.target, 0);
   const overallInForce = combinedCoverage.reduce((s, c) => s + c.inForce, 0);
   const overallGap = computeGap({ target: overallTarget, inForce: overallInForce });
+  const ciCoverageInForce = combinedCoverage
+    .filter((c) => c.category === 'ci' || c.category === 'earlyCi')
+    .reduce((s, c) => s + c.inForce, 0);
 
   const currentAge = calcAge(client.dob);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-bold text-slate-800">Financial Health</h2>
-        <p className="text-slate-500">A full financial picture built from this client's income, assets, CPF, investments, and coverage.</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Financial Health</h2>
+          <p className="text-slate-500">A full financial picture built from this client's income, assets, CPF, investments, and coverage.</p>
+        </div>
+        <span className="whitespace-nowrap text-sm text-slate-400">
+          {saving ? 'Saving…' : savedAt ? 'All changes saved ✓' : ''}
+        </span>
       </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
@@ -156,13 +181,31 @@ export default function FinancialHealthTab() {
           totalMonthlyIncome={totalMonthlyIncome}
           totalMonthlyExpenses={totalMonthlyExpenses}
           cashAssets={cashAssets}
+          ciCoverageInForce={ciCoverageInForce}
         />
       )}
+    </div>
+  );
+}
 
-      <div className="flex items-center gap-4">
-        <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Financial Profile'}</Button>
-        {savedAt && <span className="text-sm text-emerald-600">Saved ✓</span>}
-      </div>
+const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#0ea5e9', '#a855f7'];
+
+function BreakdownPie({ data }: { data: { name: string; value: number }[] }) {
+  const filtered = data.filter((d) => d.value > 0);
+  if (filtered.length === 0) return null;
+  return (
+    <div style={{ width: '100%', height: 220 }}>
+      <ResponsiveContainer>
+        <PieChart>
+          <Pie data={filtered} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+            {filtered.map((_, i) => (
+              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="none" />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -298,6 +341,18 @@ function CashflowSection({ profile, setProfile }: { profile: FinancialProfile; s
         <p className="mt-3 text-right text-sm font-semibold text-slate-600">Total: {formatCurrency(totalExpenses)}/mo</p>
       </Card>
 
+      {profile.expenseItems.length > 0 && (
+        <Card className="p-6">
+          <h3 className="mb-1 font-bold text-slate-800">Expense Breakdown</h3>
+          <BreakdownPie
+            data={EXPENSE_CATEGORIES.map((c) => ({
+              name: c,
+              value: profile.expenseItems.filter((i) => i.category === c).reduce((s, i) => s + i.amount, 0),
+            }))}
+          />
+        </Card>
+      )}
+
       <div className={`rounded-2xl p-6 ${surplus >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
         <p className="text-sm font-semibold text-slate-600">Monthly Surplus</p>
         <p className={`text-3xl font-bold ${surplus >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(surplus)}</p>
@@ -326,6 +381,14 @@ function NetWorthSection({
     setProfile({ ...profile, assets: profile.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) });
   const removeAsset = (id: string) => setProfile({ ...profile, assets: profile.assets.filter((a) => a.id !== id) });
   const totalOtherAssets = profile.assets.reduce((s, a) => s + a.amount, 0);
+  const pieData = [
+    ...ASSET_CATEGORIES.filter((c) => c !== 'CPF').map((c) => ({
+      name: c,
+      value: profile.assets.filter((a) => a.category === c).reduce((s, a) => s + a.amount, 0),
+    })),
+    { name: 'CPF', value: totalCpf },
+    { name: 'Investments', value: totalInvestments },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -355,7 +418,8 @@ function NetWorthSection({
 
       <Card className="p-6">
         <h3 className="mb-4 font-bold text-slate-800">Net Worth Summary</h3>
-        <div className="flex flex-col divide-y divide-slate-100 text-sm">
+        <BreakdownPie data={pieData} />
+        <div className="mt-4 flex flex-col divide-y divide-slate-100 text-sm">
           <Row label="Other assets" value={formatCurrency(totalOtherAssets)} />
           <Row label="CPF (OA + SA + MA + RA)" value={formatCurrency(totalCpf)} />
           <Row label="Investments (current value)" value={formatCurrency(totalInvestments)} />
@@ -671,6 +735,7 @@ function ScenarioSection({
   totalMonthlyIncome,
   totalMonthlyExpenses,
   cashAssets,
+  ciCoverageInForce,
 }: {
   profile: FinancialProfile;
   setProfile: (p: FinancialProfile) => void;
@@ -678,6 +743,7 @@ function ScenarioSection({
   totalMonthlyIncome: number;
   totalMonthlyExpenses: number;
   cashAssets: number;
+  ciCoverageInForce: number;
 }) {
   const addEvent = () =>
     setProfile({
@@ -717,6 +783,14 @@ function ScenarioSection({
 
   return (
     <div className="flex flex-col gap-6">
+      <CriticalIllnessCard
+        profile={profile}
+        setProfile={setProfile}
+        currentAge={currentAge}
+        totalMonthlyIncome={totalMonthlyIncome}
+        ciCoverageInForce={ciCoverageInForce}
+      />
+
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-bold text-slate-800">Life Events</h3>
@@ -787,5 +861,92 @@ function ScenarioSection({
         </Card>
       )}
     </div>
+  );
+}
+
+function CriticalIllnessCard({
+  profile,
+  setProfile,
+  currentAge,
+  totalMonthlyIncome,
+  ciCoverageInForce,
+}: {
+  profile: FinancialProfile;
+  setProfile: (p: FinancialProfile) => void;
+  currentAge: number | null;
+  totalMonthlyIncome: number;
+  ciCoverageInForce: number;
+}) {
+  const [diagnosisAge, setDiagnosisAge] = useState((currentAge ?? 30) + 5);
+  const [recoveryYears, setRecoveryYears] = useState(2);
+  const [medicalBills, setMedicalBills] = useState(50000);
+
+  const incomeLost = totalMonthlyIncome * 12 * recoveryYears;
+  const totalNeed = incomeLost + medicalBills;
+  const covered = Math.min(ciCoverageInForce, totalNeed);
+  const shortfall = Math.max(0, totalNeed - ciCoverageInForce);
+  const status = totalNeed === 0 ? 'good' : ciCoverageInForce >= totalNeed ? 'good' : ciCoverageInForce >= totalNeed * 0.5 ? 'warn' : 'bad';
+
+  const alreadyApplied = profile.lifeEvents.some((e) => e.type === 'Critical Illness');
+
+  const applyScenario = () => {
+    const event: LifeEvent = {
+      id: newId(),
+      label: 'Critical illness diagnosis (e.g. cancer) — unable to work',
+      type: 'Critical Illness',
+      startAge: diagnosisAge,
+      endAge: diagnosisAge + Math.max(0, recoveryYears - 1),
+      incomeDeltaMonthly: -totalMonthlyIncome,
+      expenseDeltaMonthly: 0,
+    };
+    setProfile({ ...profile, lifeEvents: [...profile.lifeEvents, event] });
+  };
+
+  return (
+    <Card className="p-6">
+      <h3 className="mb-1 font-bold text-slate-800">Critical Illness Scenario</h3>
+      <p className="mb-4 text-sm text-slate-500">
+        If this client were diagnosed with a critical illness (e.g. cancer, stroke, heart attack) and couldn't work during
+        treatment — this is exactly what CI coverage exists to replace: lost income plus the bills.
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Diagnosis age</label>
+          <input type="number" value={diagnosisAge} onChange={(e) => setDiagnosisAge(Number(e.target.value))} className="input" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Years unable to work</label>
+          <input type="number" value={recoveryYears} onChange={(e) => setRecoveryYears(Number(e.target.value))} className="input" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Estimated medical / treatment bills</label>
+          <input type="number" value={medicalBills} onChange={(e) => setMedicalBills(Number(e.target.value))} className="input" />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col divide-y divide-slate-100 text-sm">
+        <Row label="Income lost while not working" value={formatCurrency(incomeLost)} sub={`${formatCurrency(totalMonthlyIncome)}/mo × ${recoveryYears} yr`} />
+        <Row label="Medical / treatment bills" value={formatCurrency(medicalBills)} />
+        <Row label="Total financial impact" value={formatCurrency(totalNeed)} />
+        <Row label="Existing CI coverage (in force)" value={formatCurrency(ciCoverageInForce)} sub="Critical Illness + Early/Intermediate CI, from Portfolio" />
+      </div>
+
+      <div className={`mt-4 rounded-xl p-4 ${status === 'good' ? 'bg-emerald-50' : status === 'warn' ? 'bg-amber-50' : 'bg-rose-50'}`}>
+        <p className="text-sm font-semibold text-slate-600">{shortfall > 0 ? 'Coverage Shortfall' : 'Fully Covered'}</p>
+        <p className={`text-2xl font-bold ${status === 'good' ? 'text-emerald-600' : status === 'warn' ? 'text-amber-600' : 'text-rose-600'}`}>
+          {shortfall > 0 ? formatCurrency(shortfall) : `${formatCurrency(covered)} of ${formatCurrency(totalNeed)} covered`}
+        </p>
+        {shortfall > 0 && (
+          <p className="mt-1 text-sm text-slate-500">
+            Existing CI coverage would cover {formatCurrency(covered)} of the {formatCurrency(totalNeed)} needed — a shortfall of{' '}
+            {formatCurrency(shortfall)}.
+          </p>
+        )}
+      </div>
+
+      <Button variant="secondary" className="mt-4" onClick={applyScenario} disabled={alreadyApplied}>
+        {alreadyApplied ? 'Added to projection below ✓' : 'Add to Scenario Projection ↓'}
+      </Button>
+    </Card>
   );
 }
