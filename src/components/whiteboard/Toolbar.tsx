@@ -1,6 +1,6 @@
 import type { DrawTool } from './DrawingCanvas';
 
-const COLORS = ['#0f172a', '#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea'];
+const COLORS = ['#0f172a', '#f8fafc', '#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea'];
 
 export function Toolbar({
   tool,
@@ -45,7 +45,7 @@ export function Toolbar({
           <button
             key={c}
             onClick={() => setColor(c)}
-            className={`h-8 w-8 rounded-full border-2 transition ${color === c && tool === 'pen' ? 'border-slate-800 scale-110' : 'border-white'}`}
+            className={`h-8 w-8 rounded-full border-2 transition ${color === c && tool === 'pen' ? 'border-indigo-500 scale-110' : 'border-slate-200'}`}
             style={{ backgroundColor: c }}
           />
         ))}

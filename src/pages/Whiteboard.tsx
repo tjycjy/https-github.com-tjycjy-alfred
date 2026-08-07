@@ -6,15 +6,34 @@ import { PdfPageCanvas } from '../components/whiteboard/PdfPageCanvas';
 import { Toolbar } from '../components/whiteboard/Toolbar';
 import { listBrochures, addBrochure, touchBrochure, deleteBrochure } from '../db/brochures';
 import { formatDate } from '../lib/age';
+import { useTheme } from '../state/ThemeContext';
 import type { Brochure } from '../types';
 
 type Mode = 'blank' | 'pdf';
 
+const LIGHT_INK = '#0f172a';
+const DARK_INK = '#f8fafc';
+const LIGHT_BG = '#ffffff';
+const DARK_BG = '#0f172a';
+
 export default function Whiteboard() {
+  const { resolvedDark } = useTheme();
   const [mode, setMode] = useState<Mode>('blank');
   const [tool, setTool] = useState<DrawTool>('pen');
-  const [color, setColor] = useState('#0f172a');
+  const [color, setColor] = useState(resolvedDark ? DARK_INK : LIGHT_INK);
   const [thickness, setThickness] = useState(4);
+  const colorCustomizedRef = useRef(false);
+
+  useEffect(() => {
+    if (!colorCustomizedRef.current) {
+      setColor(resolvedDark ? DARK_INK : LIGHT_INK);
+    }
+  }, [resolvedDark]);
+
+  const handleSetColor = (c: string) => {
+    colorCustomizedRef.current = true;
+    setColor(c);
+  };
 
   const [brochures, setBrochures] = useState<Brochure[]>([]);
   const [showShelf, setShowShelf] = useState(false);
@@ -82,7 +101,7 @@ export default function Whiteboard() {
         tool={tool}
         setTool={setTool}
         color={color}
-        setColor={setColor}
+        setColor={handleSetColor}
         thickness={thickness}
         setThickness={setThickness}
         onClear={clear}
@@ -179,7 +198,13 @@ export default function Whiteboard() {
 
       <div className="flex-1 overflow-auto bg-slate-200">
         {mode === 'blank' ? (
-          <DrawingCanvas ref={blankCanvasRef} color={color} thickness={thickness} tool={tool} />
+          <DrawingCanvas
+            ref={blankCanvasRef}
+            color={color}
+            thickness={thickness}
+            tool={tool}
+            bgColor={resolvedDark ? DARK_BG : LIGHT_BG}
+          />
         ) : pdfDoc ? (
           <div className="relative mx-auto my-4" style={{ width: pdfSize.width, height: pdfSize.height }}>
             <PdfPageCanvas pdfDoc={pdfDoc} pageNumber={pageNumber} onSize={setPdfSize} />

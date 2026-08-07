@@ -1,31 +1,33 @@
 import { useEffect, useState } from 'react';
-import { listGoals, addGoal, updateGoal, deleteGoal } from '../db/goals';
+import { listGoals, addGoal, updateGoal, deleteGoal, getAwardFyc, setAwardFyc } from '../db/goals';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ProgressBar } from '../components/ui/ProgressBar';
+import { SliderInput } from '../components/ui/SliderInput';
 import { formatCurrency } from '../lib/coverageGap';
 import type { PracticeGoal } from '../types';
 
 const YEAR = new Date().getFullYear().toString();
 
-const IDA_PRESETS = [
-  { label: 'IDA Bronze Dragon (FYC)', target: 85000 },
-  { label: 'IDA Silver Dragon (FYC)', target: 255000 },
-  { label: 'IDA Gold Dragon (FYC)', target: 510000 },
-  { label: 'IDA Platinum Dragon (FYC)', target: 765000 },
-];
-
-const MDRT_TIER_PRESETS = [
-  { tier: 'MDRT', fyc: 75000, fyp: 227400, income: 131300 },
-  { tier: 'COT', fyc: 227400, fyp: 682200, income: 393900 },
-  { tier: 'TOT', fyc: 454800, fyp: 1364400, income: 787800 },
-];
+const AWARD_TIERS = [
+  { label: 'MDRT', threshold: 75000 },
+  { label: 'IDA Bronze Dragon', threshold: 85000 },
+  { label: 'IDA Silver Dragon', threshold: 255000 },
+  { label: 'COT', threshold: 227400 },
+  { label: 'IDA Gold Dragon', threshold: 510000 },
+  { label: 'TOT', threshold: 454800 },
+  { label: 'IDA Platinum Dragon', threshold: 765000 },
+].sort((a, b) => a.threshold - b.threshold);
 
 export default function Goals() {
   const [goals, setGoals] = useState<PracticeGoal[]>([]);
   const [form, setForm] = useState({ label: '', target: '', period: new Date().toISOString().slice(0, 7) });
+  const [awardFyc, setAwardFycState] = useState(0);
 
-  const load = async () => setGoals(await listGoals());
+  const load = async () => {
+    setGoals(await listGoals());
+    setAwardFycState(await getAwardFyc());
+  };
 
   useEffect(() => {
     load();
@@ -38,37 +40,26 @@ export default function Goals() {
     await load();
   };
 
-  const hasPreset = (label: string) => goals.some((g) => g.label === label && g.period === YEAR);
-
-  const addIdaPreset = async (label: string, target: number) => {
-    if (hasPreset(label)) return;
-    await addGoal({ label, target, current: 0, period: YEAR });
-    await load();
-  };
-
-  const addTierPreset = async (tier: string, fyc: number, fyp: number, income: number) => {
-    const rows: [string, number][] = [
-      [`${tier} — FYC`, fyc],
-      [`${tier} — FYP`, fyp],
-      [`${tier} — Income`, income],
-    ];
-    for (const [label, target] of rows) {
-      if (hasPreset(label)) continue;
-      await addGoal({ label, target, current: 0, period: YEAR });
-    }
-    await load();
+  const saveAwardFyc = async (value: number) => {
+    setAwardFycState(value);
+    await setAwardFyc(value);
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Goals</h1>
-        <p className="text-slate-500">Personal targets — new business, meetings, AUM growth</p>
+        <p className="text-slate-500">Personal targets — new business, meetings, closed accounts, and more</p>
       </div>
 
       <Card className="p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px_140px_120px]">
-          <input placeholder="e.g. New meetings this month" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="input" />
+          <input
+            placeholder="e.g. Meet 30 people this month, Close 100 Accident Plans this year"
+            value={form.label}
+            onChange={(e) => setForm({ ...form, label: e.target.value })}
+            className="input"
+          />
           <input type="number" placeholder="Target" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} className="input" />
           <input type="month" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} className="input" />
           <Button onClick={create}>Add Goal</Button>
@@ -76,52 +67,34 @@ export default function Goals() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="mb-1 font-bold text-slate-800">Industry Award Presets ({YEAR})</h2>
-        <p className="mb-4 text-sm text-slate-500">Tap to add a preset target for this year. FYC = first year commission, FYP = first year premium.</p>
-
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">IDA</p>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {IDA_PRESETS.map((p) => {
-            const done = hasPreset(p.label);
-            return (
-              <button
-                key={p.label}
-                onClick={() => addIdaPreset(p.label, p.target)}
-                disabled={done}
-                className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  done
-                    ? 'cursor-default border-slate-100 bg-slate-50 text-slate-300'
-                    : 'border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-200'
-                }`}
-              >
-                <span className="block font-semibold">{p.label}</span>
-                <span className="block text-xs">{formatCurrency(p.target)}{done ? ' · added' : ''}</span>
-              </button>
-            );
-          })}
+        <h2 className="mb-1 font-bold text-slate-800">Award Progress ({YEAR})</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          MDRT, COT, TOT and IDA all run off the same year-to-date FYC — enter it once and every tier below fills in
+          together. FYC = first year commission.
+        </p>
+        <div className="mb-5 max-w-xs">
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Current FYC (S$)</label>
+          <input
+            type="number"
+            value={awardFyc}
+            onChange={(e) => saveAwardFyc(Number(e.target.value))}
+            className="input"
+          />
         </div>
-
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">MDRT / COT / TOT</p>
-        <div className="flex flex-wrap gap-2">
-          {MDRT_TIER_PRESETS.map((p) => {
-            const done = hasPreset(`${p.tier} — FYC`) && hasPreset(`${p.tier} — FYP`) && hasPreset(`${p.tier} — Income`);
+        <div className="flex flex-col gap-3">
+          {AWARD_TIERS.map((t) => {
+            const ratio = t.threshold > 0 ? Math.min(1, awardFyc / t.threshold) : 0;
+            const status = ratio >= 1 ? 'met' : ratio >= 0.5 ? 'amber' : 'red';
             return (
-              <button
-                key={p.tier}
-                onClick={() => addTierPreset(p.tier, p.fyc, p.fyp, p.income)}
-                disabled={done}
-                className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  done
-                    ? 'cursor-default border-slate-100 bg-slate-50 text-slate-300'
-                    : 'border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-200'
-                }`}
-              >
-                <span className="block font-semibold">{p.tier}</span>
-                <span className="block text-xs">
-                  FYC {formatCurrency(p.fyc)} · FYP {formatCurrency(p.fyp)} · Income {formatCurrency(p.income)}
-                  {done ? ' · added' : ''}
-                </span>
-              </button>
+              <div key={t.label}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-slate-700">{t.label}</span>
+                  <span className="text-slate-400">
+                    {formatCurrency(Math.min(awardFyc, t.threshold))} / {formatCurrency(t.threshold)}
+                  </span>
+                </div>
+                <ProgressBar ratio={ratio} status={status} />
+              </div>
             );
           })}
         </div>
@@ -134,6 +107,7 @@ export default function Goals() {
           {goals.map((goal) => {
             const ratio = goal.target > 0 ? Math.min(1, goal.current / goal.target) : 0;
             const status = ratio >= 1 ? 'met' : ratio >= 0.5 ? 'amber' : 'red';
+            const sliderMax = Math.max(goal.target * 1.2, goal.current, 10);
             return (
               <Card key={goal.id} className="p-5">
                 <div className="mb-2 flex items-center justify-between">
@@ -144,22 +118,24 @@ export default function Goals() {
                   <button onClick={async () => { await deleteGoal(goal.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
                 </div>
                 <ProgressBar ratio={ratio} status={status} />
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="text-slate-500">{goal.current} / {goal.target}</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={async () => { await updateGoal({ ...goal, current: Math.max(0, goal.current - 1) }); await load(); }}
-                      className="h-8 w-8 rounded-full bg-slate-100 font-bold text-slate-600 hover:bg-slate-200"
-                    >
-                      −
-                    </button>
-                    <button
-                      onClick={async () => { await updateGoal({ ...goal, current: goal.current + 1 }); await load(); }}
-                      className="h-8 w-8 rounded-full bg-indigo-100 font-bold text-indigo-600 hover:bg-indigo-200"
-                    >
-                      +
-                    </button>
-                  </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={goal.current}
+                    onChange={async (e) => { await updateGoal({ ...goal, current: Number(e.target.value) }); await load(); }}
+                    className="input w-24"
+                  />
+                  <span className="text-sm text-slate-400">/ {goal.target}</span>
+                </div>
+                <div className="mt-2">
+                  <SliderInput
+                    label="Adjust progress"
+                    value={goal.current}
+                    min={0}
+                    max={sliderMax}
+                    step={sliderMax > 200 ? Math.ceil(sliderMax / 100) : 1}
+                    onChange={async (v) => { await updateGoal({ ...goal, current: v }); await load(); }}
+                  />
                 </div>
               </Card>
             );

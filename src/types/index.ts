@@ -214,24 +214,12 @@ export interface NewsBriefing {
 export interface FundEntry {
   id: UUID;
   name: string;
+  insurer: string;
   nav: number | null;
   return1y: number | null;
   return3y: number | null;
   return5y: number | null;
   sourceFileName: string | null;
-  updatedAt: string;
-}
-
-export interface WatchlistPricePoint {
-  date: string;
-  price: number;
-}
-
-export interface WatchlistEntry {
-  id: UUID;
-  name: string;
-  ticker: string;
-  history: WatchlistPricePoint[];
   updatedAt: string;
 }
 

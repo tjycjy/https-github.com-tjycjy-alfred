@@ -20,11 +20,12 @@ interface DrawingCanvasProps {
   thickness: number;
   tool: DrawTool;
   transparent?: boolean;
+  bgColor?: string;
   className?: string;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-  ({ color, thickness, tool, transparent = false, className = '' }, ref) => {
+  ({ color, thickness, tool, transparent = false, bgColor = '#ffffff', className = '' }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const strokesRef = useRef<Stroke[]>([]);
@@ -32,10 +33,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const colorRef = useRef(color);
     const thicknessRef = useRef(thickness);
     const toolRef = useRef(tool);
+    const bgColorRef = useRef(bgColor);
 
     colorRef.current = color;
     thicknessRef.current = thickness;
     toolRef.current = tool;
+    bgColorRef.current = bgColor;
 
     const redraw = () => {
       const canvas = canvasRef.current;
@@ -45,7 +48,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const dpr = window.devicePixelRatio || 1;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (!transparent) {
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = bgColorRef.current;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
       ctx.lineCap = 'round';
@@ -53,7 +56,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
       for (const stroke of strokesRef.current) {
         if (stroke.points.length < 2) continue;
-        ctx.strokeStyle = stroke.tool === 'eraser' ? (transparent ? '#000000' : '#ffffff') : stroke.color;
+        ctx.strokeStyle = stroke.tool === 'eraser' ? (transparent ? '#000000' : bgColorRef.current) : stroke.color;
         ctx.globalCompositeOperation = stroke.tool === 'eraser' && transparent ? 'destination-out' : 'source-over';
         for (let i = 1; i < stroke.points.length; i++) {
           const p0 = stroke.points[i - 1];
@@ -100,6 +103,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+      redraw();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bgColor]);
 
     const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
       const rect = canvasRef.current!.getBoundingClientRect();

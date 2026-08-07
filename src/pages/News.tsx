@@ -1,18 +1,34 @@
 import { useEffect, useState } from 'react';
 import { getBriefing, saveBriefing } from '../db/news';
+import { fetchAutoBriefing, type FeedHeadline } from '../lib/newsFeeds';
+import { formatDateTime } from '../lib/age';
 import { Button } from '../components/ui/Button';
 import type { NewsBriefing } from '../types';
 
+const LINK_DELIM = ' ||| ';
+
 function formatTimestamp(iso: string | null): string {
   if (!iso) return 'Never refreshed';
-  return new Date(iso).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+  return formatDateTime(iso);
 }
 
-function toHeadlines(text: string): string[] {
+function toHeadlines(text: string): FeedHeadline[] {
   return text
     .split('\n')
     .map((line) => line.replace(/^[-•*\d.)\s]+/, '').trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((line) => {
+      const idx = line.indexOf(LINK_DELIM);
+      return idx === -1 ? { title: line, link: '' } : { title: line.slice(0, idx), link: line.slice(idx + LINK_DELIM.length) };
+    });
+}
+
+function serializeHeadlines(headlines: FeedHeadline[]): string {
+  return headlines.map((h) => (h.link ? `${h.title}${LINK_DELIM}${h.link}` : h.title)).join('\n');
+}
+
+function headlinesToPlainText(headlines: FeedHeadline[]): string {
+  return headlines.map((h) => h.title).join('\n');
 }
 
 export default function News() {
@@ -20,6 +36,8 @@ export default function News() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ globalNews: '', sgNews: '', otherNews: '' });
   const [saving, setSaving] = useState(false);
+  const [autoFetching, setAutoFetching] = useState(false);
+  const [fetchErrors, setFetchErrors] = useState<string[]>([]);
 
   useEffect(() => {
     getBriefing().then(setBriefing);
@@ -27,7 +45,11 @@ export default function News() {
 
   const startEdit = () => {
     if (!briefing) return;
-    setDraft({ globalNews: briefing.globalNews, sgNews: briefing.sgNews, otherNews: briefing.otherNews });
+    setDraft({
+      globalNews: headlinesToPlainText(toHeadlines(briefing.globalNews)),
+      sgNews: headlinesToPlainText(toHeadlines(briefing.sgNews)),
+      otherNews: headlinesToPlainText(toHeadlines(briefing.otherNews)),
+    });
     setEditing(true);
   };
 
@@ -44,6 +66,28 @@ export default function News() {
     setBriefing(updated);
     setSaving(false);
     setEditing(false);
+  };
+
+  const autoRefresh = async () => {
+    setAutoFetching(true);
+    setFetchErrors([]);
+    try {
+      const result = await fetchAutoBriefing();
+      const updated: NewsBriefing = {
+        id: 'briefing',
+        globalNews: serializeHeadlines(result.globalNews),
+        sgNews: serializeHeadlines(result.sgNews),
+        otherNews: serializeHeadlines(result.otherNews),
+        lastRefreshedAt: new Date().toISOString(),
+      };
+      await saveBriefing(updated);
+      setBriefing(updated);
+      setFetchErrors(result.errors);
+    } catch {
+      setFetchErrors(['Could not reach any news source — check your connection and try again.']);
+    } finally {
+      setAutoFetching(false);
+    }
   };
 
   if (!briefing) return <p className="text-slate-400">Loading…</p>;
@@ -70,20 +114,31 @@ export default function News() {
               {totalHeadlines > 0 && <p className="text-xs text-slate-400">{totalHeadlines} headlines</p>}
             </div>
             {!editing && (
-              <Button onClick={startEdit} className="!bg-amber-500 text-slate-900 hover:!bg-amber-400">
-                🔄 Refresh Briefing
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={startEdit} className="!bg-slate-700 !text-white hover:!bg-slate-600">
+                  ✏️ Edit
+                </Button>
+                <Button onClick={autoRefresh} disabled={autoFetching} className="!bg-amber-500 text-slate-900 hover:!bg-amber-400">
+                  {autoFetching ? 'Fetching…' : '🔄 Auto-Refresh'}
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+        {fetchErrors.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            {fetchErrors.map((e, i) => <p key={i}>{e}</p>)}
+          </div>
+        )}
+
         {editing ? (
           <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">
-              Paste or type today's headlines into the three sections below — one headline per line. Save to publish
-              a new timestamped snapshot.
+              Auto-Refresh pulls real headlines from Yahoo Finance, The Business Times, and CNA — no typing needed.
+              Use this manual editor only if you want to override with your own picks — one headline per line.
             </p>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">🌍 Global Market News</label>
@@ -106,8 +161,8 @@ export default function News() {
           <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-500">
             <p className="text-lg font-semibold text-slate-700">No briefing published yet</p>
             <p className="mt-1">
-              This app has no built-in news feed — tap "Refresh Briefing" and paste in today's headlines (from a
-              Claude conversation, an email digest, or your own reading) to publish a snapshot here.
+              Tap "Auto-Refresh" to pull real headlines from Yahoo Finance, The Business Times, and CNA — or "Edit" to
+              paste your own.
             </p>
           </div>
         ) : (
@@ -132,7 +187,7 @@ function NewsColumn({
   accent: string;
   icon: string;
   title: string;
-  headlines: string[];
+  headlines: FeedHeadline[];
   lead?: boolean;
 }) {
   return (
@@ -144,13 +199,20 @@ function NewsColumn({
         <p className="text-sm text-slate-400">No headlines added.</p>
       ) : (
         <div className="flex flex-col">
-          {headlines.map((headline, i) => (
-            <div key={i} className={`py-3 ${i > 0 ? 'border-t border-slate-100' : ''}`}>
-              <p className={lead && i === 0 ? 'text-lg font-bold leading-snug text-slate-900' : 'font-semibold leading-snug text-slate-800'}>
-                {headline}
-              </p>
-            </div>
-          ))}
+          {headlines.map((headline, i) => {
+            const textClass = lead && i === 0 ? 'text-lg font-bold leading-snug text-slate-900' : 'font-semibold leading-snug text-slate-800';
+            return (
+              <div key={i} className={`py-3 ${i > 0 ? 'border-t border-slate-100' : ''}`}>
+                {headline.link ? (
+                  <a href={headline.link} target="_blank" rel="noreferrer" className={`${textClass} hover:text-indigo-600 hover:underline`}>
+                    {headline.title}
+                  </a>
+                ) : (
+                  <p className={textClass}>{headline.title}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

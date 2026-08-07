@@ -3,6 +3,7 @@ import { getSettings, saveSettings } from '../db/settings';
 import { exportAllData, downloadExport, importData, parseImportFile } from '../db/exportImport';
 import { useAuth } from '../state/AuthContext';
 import { useTheme, type ThemePreference } from '../state/ThemeContext';
+import { formatDateTime } from '../lib/age';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PinPad } from '../components/lock/PinPad';
@@ -51,7 +52,7 @@ export default function Settings() {
     try {
       const bundle = await parseImportFile(file);
       await importData(bundle, 'merge');
-      setImportMessage(`Imported successfully (backup from ${new Date(bundle.exportedAt).toLocaleString()}).`);
+      setImportMessage(`Imported successfully (backup from ${formatDateTime(bundle.exportedAt)}).`);
     } catch {
       setImportMessage('Import failed — file could not be read as a valid backup.');
     }
@@ -229,7 +230,7 @@ export default function Settings() {
         <h2 className="mb-2 text-lg font-bold text-slate-800">Data Backup</h2>
         <p className="mb-4 text-slate-500">
           All client data lives only on this device. Export regularly to back up or move to another iPad.
-          {settings.lastBackupAt && <span className="block text-sm text-slate-400">Last backup: {new Date(settings.lastBackupAt).toLocaleString()}</span>}
+          {settings.lastBackupAt && <span className="block text-sm text-slate-400">Last backup: {formatDateTime(settings.lastBackupAt)}</span>}
         </p>
         <div className="flex flex-wrap gap-3">
           <Button onClick={handleExport}>⬇ Export All Data (JSON)</Button>

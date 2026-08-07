@@ -135,7 +135,14 @@ export default function Knowledge() {
             )}
 
             {matches && matches.length === 0 && (
-              <p className="text-sm text-slate-400">No matches found in your imported documents for that question.</p>
+              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                <p>No matches found in your imported documents for that question.</p>
+                <p className="mt-2">Try the product's full name instead of an abbreviation, or check spelling. Currently searching {docs.length} document{docs.length === 1 ? '' : 's'}:</p>
+                <ul className="mt-1 list-inside list-disc">
+                  {docs.slice(0, 12).map((d) => <li key={d.id}>{d.name}</li>)}
+                  {docs.length > 12 && <li>…and {docs.length - 12} more</li>}
+                </ul>
+              </div>
             )}
 
             {matches && matches.length > 0 && (

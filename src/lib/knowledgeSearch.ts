@@ -8,8 +8,35 @@ const STOPWORDS = new Set([
   'this', 'that', 'these', 'those', 'it', 'its', 'me', 'my', 'i', 'you', 'your',
 ]);
 
+// Common GE product-name acronyms, so a question like "what is GWA" also matches documents
+// whose text/filename spells the name out in full. This only widens what we search for — it
+// never injects text into an answer, so an imprecise guess here is harmless, not misleading.
+const ACRONYM_EXPANSIONS: Record<string, string[]> = {
+  gwa: ['wealth', 'advantage'],
+  gfa: ['flexi', 'advantage'],
+  gia: ['invest', 'advantage'],
+  gla: ['life', 'advantage'],
+  gts: ['term', 'special'],
+  gsp: ['sp'],
+  gwm: ['wealth', 'multiplier'],
+  glp: ['lifetime', 'payout'],
+  shp: ['supremehealth'],
+  tc: ['totalcare'],
+  tc2: ['totalcare'],
+};
+
 function tokenize(s: string): string[] {
   return s.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+function expandTerms(terms: string[]): string[] {
+  const expanded = new Set(terms);
+  for (const term of terms) {
+    for (const word of ACRONYM_EXPANSIONS[term] ?? []) expanded.add(word);
+    // naive plural/singular folding
+    if (term.endsWith('s') && term.length > 3) expanded.add(term.slice(0, -1));
+  }
+  return Array.from(expanded);
 }
 
 export interface DocMatch {
@@ -19,15 +46,20 @@ export interface DocMatch {
 }
 
 export function searchKnowledge(docs: KnowledgeDoc[], query: string, maxResults = 5): DocMatch[] {
-  const terms = Array.from(new Set(tokenize(query))).filter((t) => t.length > 2 && !STOPWORDS.has(t));
-  if (terms.length === 0) return [];
+  const rawTerms = Array.from(new Set(tokenize(query))).filter((t) => t.length > 2 && !STOPWORDS.has(t));
+  if (rawTerms.length === 0) return [];
+  const terms = expandTerms(rawTerms);
 
   const results: DocMatch[] = [];
   for (const doc of docs) {
     const lowerText = doc.text.toLowerCase();
+    const lowerName = doc.name.toLowerCase();
     let score = 0;
     const matchStarts: number[] = [];
+
     for (const term of terms) {
+      if (lowerName.includes(term)) score += 5;
+
       let idx = lowerText.indexOf(term);
       let count = 0;
       while (idx !== -1 && count < 8) {
@@ -50,6 +82,11 @@ export function searchKnowledge(docs: KnowledgeDoc[], query: string, maxResults 
       snippets.push(`${windowStart > 0 ? '…' : ''}${snippet}${windowEnd < doc.text.length ? '…' : ''}`);
       lastEnd = windowEnd;
       if (snippets.length >= 3) break;
+    }
+    // Filename-only matches (e.g. acronym only in the name, not the body) still deserve a
+    // result even with zero body snippets, so the advisor can see which document to open.
+    if (snippets.length === 0 && lowerName.split(/\W+/).some((w) => terms.includes(w))) {
+      snippets.push('(matched by document name — open the document to read it)');
     }
     results.push({ doc, snippets, score });
   }

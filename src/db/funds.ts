@@ -5,7 +5,7 @@ import type { FundEntry } from '../types';
 export async function listFunds(): Promise<FundEntry[]> {
   const db = await getDb();
   const all = await db.getAll('funds');
-  return all.sort((a, b) => a.name.localeCompare(b.name));
+  return all.map((f) => ({ ...f, insurer: f.insurer ?? 'Other' })).sort((a, b) => a.insurer.localeCompare(b.insurer) || a.name.localeCompare(b.name));
 }
 
 export async function addFund(input: Omit<FundEntry, 'id' | 'updatedAt'>): Promise<FundEntry> {

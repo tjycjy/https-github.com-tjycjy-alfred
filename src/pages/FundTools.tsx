@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listFunds, addFund, deleteFund } from '../db/funds';
-import { listWatchlist, addWatchlistEntry, logWatchlistPrice, deleteWatchlistEntry } from '../db/watchlist';
 import { extractFactsheetText, guessFactsheetFields } from '../lib/fundFactsheet';
 import { compoundInterestSeries } from '../lib/calculators/finance';
 import { formatCurrency } from '../lib/coverageGap';
@@ -10,7 +9,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SliderInput } from '../components/ui/SliderInput';
-import type { FundEntry, WatchlistEntry } from '../types';
+import type { FundEntry } from '../types';
+
+const INSURERS = ['Great Eastern', 'AIA', 'Prudential', 'Manulife', 'iFAST', 'Other'];
 
 export default function FundTools() {
   const [funds, setFunds] = useState<FundEntry[]>([]);
@@ -27,54 +28,67 @@ export default function FundTools() {
     load();
   }, []);
 
+  const grouped = INSURERS.map((insurer) => ({ insurer, funds: funds.filter((f) => f.insurer === insurer) })).filter(
+    (g) => g.funds.length > 0,
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Fund Tools</h1>
-          <p className="text-slate-500">Import factsheets and simulate blended allocation growth.</p>
+          <p className="text-slate-500">Track your clients' insurer-linked funds (GreatLink, AIA Portfolio, PRUlink, etc.) and simulate blended allocation growth.</p>
         </div>
         <Button onClick={() => setShowImport(true)}>📄 Import Factsheet</Button>
       </div>
 
-      <MarketWatchlist />
-
       <Card className="p-6">
-        <h2 className="mb-4 text-lg font-bold text-slate-800">Fund Database</h2>
+        <h2 className="mb-1 text-lg font-bold text-slate-800">Fund Database</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          No backend means no live daily NAV feed — factsheets update NAV/returns when you import a new PDF, or you can
+          key figures in by hand whenever you get a fresh factsheet from the insurer.
+        </p>
         {loading ? (
           <p className="text-slate-400">Loading…</p>
         ) : funds.length === 0 ? (
-          <p className="text-slate-400">No funds imported yet. Import a factsheet PDF to get started.</p>
+          <p className="text-slate-400">No funds added yet. Import a factsheet PDF or add one manually to get started — e.g. a GreatLink fund, AIA 100 Portfolio, PRUlink fund, etc.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
-                  <th className="py-2">Fund</th>
-                  <th className="py-2 text-right">NAV</th>
-                  <th className="py-2 text-right">1Y</th>
-                  <th className="py-2 text-right">3Y</th>
-                  <th className="py-2 text-right">5Y</th>
-                  <th className="py-2 text-right">Last Updated</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {funds.map((f) => (
-                  <tr key={f.id} className="border-b border-slate-100">
-                    <td className="py-2 font-medium text-slate-700">{f.name}</td>
-                    <td className="py-2 text-right text-slate-600">{f.nav !== null ? f.nav.toFixed(4) : '—'}</td>
-                    <td className="py-2 text-right text-slate-600">{f.return1y !== null ? `${f.return1y}%` : '—'}</td>
-                    <td className="py-2 text-right text-slate-600">{f.return3y !== null ? `${f.return3y}%` : '—'}</td>
-                    <td className="py-2 text-right text-slate-600">{f.return5y !== null ? `${f.return5y}%` : '—'}</td>
-                    <td className="py-2 text-right text-slate-400">{formatDate(f.updatedAt)}</td>
-                    <td className="py-2 text-right">
-                      <button onClick={async () => { await deleteFund(f.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-6">
+            {grouped.map((g) => (
+              <div key={g.insurer}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{g.insurer}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-slate-500">
+                        <th className="py-2">Fund</th>
+                        <th className="py-2 text-right">NAV</th>
+                        <th className="py-2 text-right">1Y</th>
+                        <th className="py-2 text-right">3Y</th>
+                        <th className="py-2 text-right">5Y</th>
+                        <th className="py-2 text-right">Last Updated</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.funds.map((f) => (
+                        <tr key={f.id} className="border-b border-slate-100">
+                          <td className="py-2 font-medium text-slate-700">{f.name}</td>
+                          <td className="py-2 text-right text-slate-600">{f.nav !== null ? f.nav.toFixed(4) : '—'}</td>
+                          <td className="py-2 text-right text-slate-600">{f.return1y !== null ? `${f.return1y}%` : '—'}</td>
+                          <td className="py-2 text-right text-slate-600">{f.return3y !== null ? `${f.return3y}%` : '—'}</td>
+                          <td className="py-2 text-right text-slate-600">{f.return5y !== null ? `${f.return5y}%` : '—'}</td>
+                          <td className="py-2 text-right text-slate-400">{formatDate(f.updatedAt)}</td>
+                          <td className="py-2 text-right">
+                            <button onClick={async () => { await deleteFund(f.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>
@@ -88,6 +102,7 @@ export default function FundTools() {
 
 function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('');
+  const [insurer, setInsurer] = useState(INSURERS[0]);
   const [nav, setNav] = useState('');
   const [return1y, setReturn1y] = useState('');
   const [return3y, setReturn3y] = useState('');
@@ -119,6 +134,7 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
     setSaving(true);
     await addFund({
       name: name.trim(),
+      insurer,
       nav: nav ? Number(nav) : null,
       return1y: return1y ? Number(return1y) : null,
       return3y: return3y ? Number(return3y) : null,
@@ -136,7 +152,7 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Import Fund Factsheet">
+    <Modal open={open} onClose={onClose} title="Add / Import Fund">
       <div className="flex flex-col gap-4">
         <input
           ref={fileInputRef}
@@ -146,14 +162,23 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
           onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
         />
         <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
-          {extracting ? 'Reading PDF…' : fileName ? `📄 ${fileName}` : '📄 Choose Factsheet PDF'}
+          {extracting ? 'Reading PDF…' : fileName ? `📄 ${fileName}` : '📄 Choose Factsheet PDF (optional)'}
         </Button>
         <p className="text-xs text-slate-400">
-          Figures are auto-detected where possible — factsheet layouts vary, so please double-check before saving.
+          Figures are auto-detected where possible — factsheet layouts vary, so please double-check before saving. Or
+          skip the PDF and key the fund in manually.
         </p>
         <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">Insurer</label>
+          <select value={insurer} onChange={(e) => setInsurer(e.target.value)} className="input">
+            {INSURERS.map((i) => (
+              <option key={i} value={i}>{i}</option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Fund name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. GreatLink Global Equity Fund" className="input" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -220,7 +245,7 @@ function AllocationSimulator({ funds }: { funds: FundEntry[] }) {
   if (funds.length < 2) {
     return (
       <Card className="p-6 text-slate-400">
-        Import at least 2 funds to use the allocation simulator.
+        Add at least 2 funds to use the allocation simulator.
       </Card>
     );
   }
@@ -251,7 +276,7 @@ function AllocationSimulator({ funds }: { funds: FundEntry[] }) {
               className="input mb-2"
             >
               {funds.map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
+                <option key={f.id} value={f.id}>{f.insurer} — {f.name}</option>
               ))}
             </select>
             <SliderInput
@@ -307,132 +332,6 @@ function AllocationSimulator({ funds }: { funds: FundEntry[] }) {
         </>
       ) : (
         <p className="text-sm text-rose-600">Allocation must total 100% before projecting growth.</p>
-      )}
-    </Card>
-  );
-}
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function daysSince(dateStr: string): number {
-  const then = new Date(dateStr).getTime();
-  const now = new Date(today()).getTime();
-  return Math.round((now - then) / (1000 * 60 * 60 * 24));
-}
-
-function MarketWatchlist() {
-  const [entries, setEntries] = useState<WatchlistEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newTicker, setNewTicker] = useState('');
-
-  const load = async () => {
-    setLoading(true);
-    setEntries(await listWatchlist());
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const logPrice = async (id: string) => {
-    const value = Number(drafts[id]);
-    if (!value) return;
-    await logWatchlistPrice(id, today(), value);
-    setDrafts((d) => ({ ...d, [id]: '' }));
-    await load();
-  };
-
-  const addEntry = async () => {
-    if (!newName.trim() || !newTicker.trim()) return;
-    await addWatchlistEntry(newName.trim(), newTicker.trim());
-    setNewName('');
-    setNewTicker('');
-    setShowAdd(false);
-    await load();
-  };
-
-  return (
-    <Card className="p-6">
-      <h2 className="mb-1 text-lg font-bold text-slate-800">Market Watchlist — GE / Big 4 Insurers / iFAST</h2>
-      <p className="mb-4 text-sm text-slate-500">
-        This is an offline app with no server, so it cannot silently scrape Morningstar or auto-refresh daily — browsers
-        block cross-site scripted access to pages like that. Instead: tap through to Morningstar to check the current
-        quote, then log it here in a few seconds. The app keeps a local price history and flags entries you haven't
-        updated today.
-      </p>
-      {loading ? (
-        <p className="text-slate-400">Loading…</p>
-      ) : (
-        <div className="flex flex-col divide-y divide-slate-100">
-          {entries.map((entry) => {
-            const latest = entry.history[entry.history.length - 1];
-            const prev = entry.history[entry.history.length - 2];
-            const change = latest && prev ? latest.price - prev.price : null;
-            const stale = !latest || daysSince(latest.date) > 0;
-            return (
-              <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                <div>
-                  <p className="font-semibold text-slate-800">{entry.name}</p>
-                  <p className="text-xs text-slate-400">{entry.ticker}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {latest ? (
-                    <div className="text-right">
-                      <p className="font-bold text-slate-800">
-                        {latest.price.toFixed(2)}
-                        {change !== null && (
-                          <span className={`ml-1 text-xs font-semibold ${change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}
-                          </span>
-                        )}
-                      </p>
-                      <p className={`text-xs ${stale ? 'text-amber-600' : 'text-slate-400'}`}>
-                        {daysSince(latest.date) === 0 ? 'Updated today' : `Logged ${formatDate(latest.date)}`}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-600">No price logged yet</p>
-                  )}
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Price"
-                    value={drafts[entry.id] ?? ''}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [entry.id]: e.target.value }))}
-                    className="input w-24"
-                  />
-                  <Button variant="secondary" onClick={() => logPrice(entry.id)}>Log</Button>
-                  <a
-                    href="https://global.morningstar.com/en-ea/stocks"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
-                  >
-                    Morningstar ↗
-                  </a>
-                  <button onClick={async () => { await deleteWatchlistEntry(entry.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {showAdd ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
-          <input placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} className="input max-w-xs" />
-          <input placeholder="Ticker" value={newTicker} onChange={(e) => setNewTicker(e.target.value)} className="input w-32" />
-          <Button onClick={addEntry}>Add</Button>
-          <button onClick={() => setShowAdd(false)} className="text-sm text-slate-400 hover:text-slate-600">Cancel</button>
-        </div>
-      ) : (
-        <button onClick={() => setShowAdd(true)} className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-700">
-          + Track another ticker
-        </button>
       )}
     </Card>
   );
