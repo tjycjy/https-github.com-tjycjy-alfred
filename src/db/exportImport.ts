@@ -11,6 +11,7 @@ import type {
   PracticeGoal,
   NewsBriefing,
   FundEntry,
+  FinancialProfile,
 } from '../types';
 
 export interface ExportBundle {
@@ -27,6 +28,7 @@ export interface ExportBundle {
   goals: PracticeGoal[];
   news: NewsBriefing[];
   funds: FundEntry[];
+  financialProfiles: FinancialProfile[];
 }
 
 const STORE_NAMES = [
@@ -41,6 +43,7 @@ const STORE_NAMES = [
   'goals',
   'news',
   'funds',
+  'financialProfiles',
 ] as const;
 
 export async function exportAllData(): Promise<ExportBundle> {

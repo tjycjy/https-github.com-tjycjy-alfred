@@ -247,6 +247,72 @@ export interface ReminderItem {
   clientId: UUID | null;
 }
 
+export interface IncomeItem {
+  id: UUID;
+  label: string;
+  amount: number;
+}
+
+export const EXPENSE_CATEGORIES = ['Housing', 'Transport', 'Food', 'Insurance', 'Debt Repayment', 'Discretionary', 'Other'] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export interface ExpenseItem {
+  id: UUID;
+  label: string;
+  category: ExpenseCategory;
+  amount: number;
+}
+
+export const ASSET_CATEGORIES = ['Cash', 'Investment', 'Property', 'CPF', 'Other'] as const;
+export type AssetCategory = (typeof ASSET_CATEGORIES)[number];
+
+export interface AssetItem {
+  id: UUID;
+  label: string;
+  category: AssetCategory;
+  amount: number;
+}
+
+export interface InvestmentHolding {
+  id: UUID;
+  fundName: string;
+  investedAmount: number;
+  currentValue: number;
+  expectedReturnPct: number;
+}
+
+export const LIFE_EVENT_TYPES = ['Income Change', 'Career Break', 'Retrenchment', 'New Dependant', 'Other'] as const;
+export type LifeEventType = (typeof LIFE_EVENT_TYPES)[number];
+
+export interface LifeEvent {
+  id: UUID;
+  label: string;
+  type: LifeEventType;
+  startAge: number;
+  endAge: number | null;
+  incomeDeltaMonthly: number;
+  expenseDeltaMonthly: number;
+}
+
+export interface FinancialProfile {
+  id: UUID;
+  clientId: UUID;
+  incomeItems: IncomeItem[];
+  expenseItems: ExpenseItem[];
+  assets: AssetItem[];
+  cpfOA: number;
+  cpfSA: number;
+  cpfMA: number;
+  cpfRA: number;
+  investments: InvestmentHolding[];
+  retirementAge: number;
+  lifeExpectancyAge: number;
+  salaryGrowthPct: number;
+  expenseInflationPct: number;
+  lifeEvents: LifeEvent[];
+  updatedAt: string;
+}
+
 export interface Brochure {
   id: UUID;
   name: string;

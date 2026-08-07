@@ -11,6 +11,7 @@ const TABS = [
   { to: 'basic-info', label: 'Basic Info' },
   { to: 'meetings', label: 'Meeting Log' },
   { to: 'fact-find', label: 'Fact-Find' },
+  { to: 'financial-health', label: 'Financial Health' },
   { to: 'portfolio', label: 'Portfolio' },
   { to: 'household', label: 'Household' },
   { to: 'report', label: 'Report' },

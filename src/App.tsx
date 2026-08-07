@@ -20,6 +20,7 @@ const ClientProfile = lazy(() => import('./pages/clients/ClientProfile'));
 const BasicInfoTab = lazy(() => import('./pages/clients/BasicInfoTab'));
 const MeetingLogTab = lazy(() => import('./pages/clients/MeetingLogTab'));
 const FactFindTab = lazy(() => import('./pages/clients/FactFindTab'));
+const FinancialHealthTab = lazy(() => import('./pages/clients/FinancialHealthTab'));
 const PortfolioTab = lazy(() => import('./pages/clients/PortfolioTab'));
 const HouseholdTab = lazy(() => import('./pages/clients/HouseholdTab'));
 const ReportTab = lazy(() => import('./pages/clients/ReportTab'));
@@ -99,6 +100,7 @@ export default function App() {
                     <Route path="basic-info" element={<BasicInfoTab />} />
                     <Route path="meetings" element={<MeetingLogTab />} />
                     <Route path="fact-find" element={<FactFindTab />} />
+                    <Route path="financial-health" element={<FinancialHealthTab />} />
                     <Route path="portfolio" element={<PortfolioTab />} />
                     <Route path="household" element={<HouseholdTab />} />
                     <Route path="report" element={<ReportTab />} />

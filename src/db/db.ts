@@ -15,6 +15,7 @@ import type {
   NewsBriefing,
   FundEntry,
   KnowledgeDoc,
+  FinancialProfile,
 } from '../types';
 
 interface FaDashboardSchema extends DBSchema {
@@ -33,10 +34,11 @@ interface FaDashboardSchema extends DBSchema {
   news: { key: string; value: NewsBriefing };
   funds: { key: string; value: FundEntry };
   knowledgeDocs: { key: string; value: KnowledgeDoc };
+  financialProfiles: { key: string; value: FinancialProfile; indexes: { clientId: string } };
 }
 
 const DB_NAME = 'fa-dashboard';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise: Promise<IDBPDatabase<FaDashboardSchema>> | null = null;
 
@@ -85,6 +87,9 @@ export function getDb(): Promise<IDBPDatabase<FaDashboardSchema>> {
         if (oldVersion < 7) {
           // Stock-ticker watchlist was replaced by insurer-tagged fund tracking (funds store).
           if (rawDb.objectStoreNames.contains('watchlist')) rawDb.deleteObjectStore('watchlist');
+        }
+        if (oldVersion < 8) {
+          db.createObjectStore('financialProfiles', { keyPath: 'id' }).createIndex('clientId', 'clientId');
         }
       },
     });
