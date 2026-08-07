@@ -8,6 +8,7 @@ import { AdvisorOnlyRoute, ClientModeRestrictedRoute } from './components/layout
 import { LockScreen } from './components/lock/LockScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { UpdatePrompt } from './components/layout/UpdatePrompt';
+import { ErrorBoundary } from './components/layout/ErrorBoundary';
 
 const Home = lazy(() => import('./pages/Home'));
 const Tasks = lazy(() => import('./pages/Tasks'));
@@ -60,6 +61,7 @@ export default function App() {
     <AuthProvider>
       <AppModeProvider>
         <UpdatePrompt />
+        <ErrorBoundary>
         <BrowserRouter>
           <Gate>
             <Suspense fallback={<PageLoading />}>
@@ -107,6 +109,7 @@ export default function App() {
             </Suspense>
           </Gate>
         </BrowserRouter>
+        </ErrorBoundary>
       </AppModeProvider>
     </AuthProvider>
     </ThemeProvider>

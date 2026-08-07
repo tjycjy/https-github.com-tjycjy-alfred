@@ -19,9 +19,14 @@ export async function listGoals(): Promise<PracticeGoal[]> {
   const all = await db.getAll('goals');
   const legacy = all.filter((g) => g.id !== AWARD_FYC_ID && LEGACY_AWARD_LABELS.has(g.label));
   if (legacy.length > 0) {
-    const tx = db.transaction('goals', 'readwrite');
-    for (const g of legacy) await tx.store.delete(g.id);
-    await tx.done;
+    try {
+      const tx = db.transaction('goals', 'readwrite');
+      await Promise.all(legacy.map((g) => tx.store.delete(g.id)));
+      await tx.done;
+    } catch (err) {
+      // Cleanup is a nice-to-have — never let it block the page from loading.
+      console.error('Failed to clean up legacy award goals', err);
+    }
   }
   return all.filter((g) => g.id !== AWARD_FYC_ID && !LEGACY_AWARD_LABELS.has(g.label));
 }
