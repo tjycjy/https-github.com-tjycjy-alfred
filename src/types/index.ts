@@ -77,6 +77,7 @@ export interface CoverageItem {
   category: CoverageCategory;
   target: number;
   inForce: number;
+  premium: number;
   notes: string;
 }
 
@@ -109,6 +110,17 @@ export interface RetirementGoal {
   returnDuringRetirementPct: number;
 }
 
+export interface SavingsGoal {
+  id: UUID;
+  purpose: string;
+  targetAmount: number;
+  targetYears: number;
+  currentSavings: number;
+  adjustForInflation: boolean;
+  inflationPct: number;
+  expectedReturnPct: number;
+}
+
 export interface FactFind {
   id: UUID;
   clientId: UUID;
@@ -118,6 +130,7 @@ export interface FactFind {
   goals: string;
   riskProfile: string;
   retirementGoal: RetirementGoal;
+  savingsGoals: SavingsGoal[];
   updatedAt: string;
 }
 
@@ -160,17 +173,6 @@ export interface PracticeGoal {
   period: string;
 }
 
-export type ReferralStatus = 'contacted' | 'met' | 'converted';
-
-export interface Referral {
-  id: UUID;
-  referrerName: string;
-  referrerClientId: UUID | null;
-  clientName: string;
-  date: string;
-  status: ReferralStatus;
-}
-
 export interface AppSettings {
   id: 'settings';
   advisorName: string;
@@ -178,7 +180,6 @@ export interface AppSettings {
   contact: string;
   photo: string | null;
   licenses: string;
-  ceDeadline: string | null;
   pinHash: string | null;
   pinSalt: string | null;
   webauthnCredentialId: string | null;
@@ -189,6 +190,8 @@ export interface AppSettings {
   onboardingComplete: boolean;
   summaryEndpointUrl: string | null;
   summaryApiKey: string | null;
+  knowledgeEndpointUrl: string | null;
+  knowledgeApiKey: string | null;
   theme: 'light' | 'dark' | 'system';
 }
 
@@ -219,13 +222,26 @@ export interface FundEntry {
   updatedAt: string;
 }
 
-export interface ObjectionEntry {
+export interface WatchlistPricePoint {
+  date: string;
+  price: number;
+}
+
+export interface WatchlistEntry {
   id: UUID;
-  objection: string;
-  response: string;
-  category: string;
-  createdAt: string;
+  name: string;
+  ticker: string;
+  history: WatchlistPricePoint[];
   updatedAt: string;
+}
+
+export interface KnowledgeDoc {
+  id: UUID;
+  name: string;
+  category: string;
+  text: string;
+  file: Blob;
+  addedAt: string;
 }
 
 export type ReminderKind = 'visit' | 'premiumDue' | 'renewal' | 'birthday' | 'task';

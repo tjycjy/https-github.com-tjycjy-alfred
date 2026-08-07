@@ -66,22 +66,22 @@ export default function Tasks() {
       </div>
 
       <Card className="p-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_180px_120px]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <input
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
             placeholder="New task…"
-            className="input"
+            className="input lg:flex-1"
             onKeyDown={(e) => e.key === 'Enter' && addTask()}
           />
-          <select value={newClientId} onChange={(e) => setNewClientId(e.target.value)} className="input">
+          <select value={newClientId} onChange={(e) => setNewClientId(e.target.value)} className="input lg:w-48">
             <option value="">No client</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} className="input" />
-          <Button onClick={addTask} disabled={!newDesc.trim()}>Add</Button>
+          <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} className="input lg:w-52" />
+          <Button onClick={addTask} disabled={!newDesc.trim()} className="lg:w-32">Add</Button>
         </div>
       </Card>
 

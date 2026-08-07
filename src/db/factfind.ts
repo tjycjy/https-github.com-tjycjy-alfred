@@ -15,7 +15,11 @@ export async function getFactFindForClient(clientId: string): Promise<FactFind> 
   const db = await getDb();
   const existing = await db.getFromIndex('factfinds', 'clientId', clientId);
   if (existing) {
-    return { ...existing, retirementGoal: { ...DEFAULT_RETIREMENT_GOAL, ...existing.retirementGoal } };
+    return {
+      ...existing,
+      retirementGoal: { ...DEFAULT_RETIREMENT_GOAL, ...existing.retirementGoal },
+      savingsGoals: existing.savingsGoals ?? [],
+    };
   }
   const factFind: FactFind = {
     id: newId(),
@@ -26,6 +30,7 @@ export async function getFactFindForClient(clientId: string): Promise<FactFind> 
     goals: '',
     riskProfile: '',
     retirementGoal: { ...DEFAULT_RETIREMENT_GOAL },
+    savingsGoals: [],
     updatedAt: nowIso(),
   };
   await db.put('factfinds', factFind);

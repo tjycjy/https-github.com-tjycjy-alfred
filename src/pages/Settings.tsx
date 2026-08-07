@@ -89,10 +89,6 @@ export default function Settings() {
             <label className="mb-1 block text-sm font-medium text-slate-600">Contact details</label>
             <input value={settings.contact} onChange={(e) => setSettings({ ...settings, contact: e.target.value })} className="input" />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">CE hours deadline</label>
-            <input type="date" value={settings.ceDeadline ?? ''} onChange={(e) => setSettings({ ...settings, ceDeadline: e.target.value || null })} className="input" />
-          </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-600">Licenses held (e.g. CMFAS papers)</label>
             <input value={settings.licenses} onChange={(e) => setSettings({ ...settings, licenses: e.target.value })} className="input" placeholder="M5, M8, M9, M9A, HI…" />
@@ -189,6 +185,35 @@ export default function Settings() {
               type="password"
               value={settings.summaryApiKey ?? ''}
               onChange={(e) => setSettings({ ...settings, summaryApiKey: e.target.value || null })}
+              className="input"
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="mb-2 text-lg font-bold text-slate-800">Ask A.L.F.R.E.D. — AI Synthesis (Advanced)</h2>
+        <p className="mb-4 text-slate-500">
+          The Ask page always does free, on-device keyword search across your imported product PDFs — no setup needed.
+          To also get a conversational, synthesized answer instead of raw excerpts, point this at your own AI endpoint;
+          nothing is sent anywhere unless you configure one here.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Knowledge endpoint URL</label>
+            <input
+              value={settings.knowledgeEndpointUrl ?? ''}
+              onChange={(e) => setSettings({ ...settings, knowledgeEndpointUrl: e.target.value || null })}
+              className="input"
+              placeholder="https://your-endpoint.example.com/ask"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">API key (optional)</label>
+            <input
+              type="password"
+              value={settings.knowledgeApiKey ?? ''}
+              onChange={(e) => setSettings({ ...settings, knowledgeApiKey: e.target.value || null })}
               className="input"
             />
           </div>

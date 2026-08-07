@@ -16,7 +16,6 @@ export function OnboardingFlow() {
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [contact, setContact] = useState('');
   const [licenses, setLicenses] = useState('');
-  const [ceDeadline, setCeDeadline] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -36,7 +35,6 @@ export function OnboardingFlow() {
     settings.registrationNumber = registrationNumber.trim();
     settings.contact = contact.trim();
     settings.licenses = licenses.trim();
-    settings.ceDeadline = ceDeadline || null;
     await saveSettings(settings);
     next();
   };
@@ -121,10 +119,6 @@ export function OnboardingFlow() {
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">Licenses held</label>
               <input value={licenses} onChange={(e) => setLicenses(e.target.value)} className="input" placeholder="M5, M8, M9, M9A, HI…" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">CE hours deadline</label>
-              <input type="date" value={ceDeadline} onChange={(e) => setCeDeadline(e.target.value)} className="input" />
             </div>
             <Button onClick={saveCredentialsStep}>Continue</Button>
           </div>

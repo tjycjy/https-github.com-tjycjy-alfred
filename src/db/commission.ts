@@ -15,6 +15,11 @@ export async function addCommission(input: Omit<CommissionEntry, 'id'>): Promise
   return entry;
 }
 
+export async function updateCommission(entry: CommissionEntry): Promise<void> {
+  const db = await getDb();
+  await db.put('commissions', entry);
+}
+
 export async function deleteCommission(id: string): Promise<void> {
   const db = await getDb();
   await db.delete('commissions', id);

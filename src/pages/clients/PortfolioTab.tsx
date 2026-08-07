@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getPortfolioForClient, savePortfolio, newPortfolioPerson, emptyCoverage } from '../../db/portfolios';
 import { computeGap, GAP_STATUS_COLOR, formatCurrency, combineCoverage } from '../../lib/coverageGap';
 import { COVERAGE_CATEGORY_LABELS } from '../../types';
-import { formatDate } from '../../lib/age';
+import { formatDate, calcAge } from '../../lib/age';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ProgressRing } from '../../components/ui/ProgressRing';
@@ -18,6 +18,7 @@ export default function PortfolioTab() {
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [lifeExpectancy, setLifeExpectancy] = useState(85);
 
   useEffect(() => {
     getPortfolioForClient(client.id).then((p) => {
@@ -41,7 +42,7 @@ export default function PortfolioTab() {
 
   const selectedPerson = portfolio.people.find((p) => p.personId === selectedPersonId) ?? portfolio.people[0];
 
-  const updatePersonCoverage = (personId: string, category: CoverageCategory, patch: { target?: number; inForce?: number }) => {
+  const updatePersonCoverage = (personId: string, category: CoverageCategory, patch: { target?: number; inForce?: number; premium?: number; notes?: string }) => {
     setPortfolio({
       ...portfolio,
       people: portfolio.people.map((person) =>
@@ -79,6 +80,10 @@ export default function PortfolioTab() {
   const totalTarget = combined.reduce((s, c) => s + c.target, 0);
   const totalInForce = combined.reduce((s, c) => s + c.inForce, 0);
   const overall = computeGap({ target: totalTarget, inForce: totalInForce });
+  const totalAnnualPremium = combined.reduce((s, c) => s + (c.premium ?? 0), 0);
+  const clientAge = calcAge(client.dob);
+  const yearsRemaining = clientAge !== null ? Math.max(lifeExpectancy - clientAge, 0) : null;
+  const lifetimePremium = yearsRemaining !== null ? totalAnnualPremium * yearsRemaining : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,6 +101,27 @@ export default function PortfolioTab() {
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Portfolio'}</Button>
         </div>
+      </Card>
+
+      <Card className="flex flex-wrap items-center justify-between gap-6 p-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Total Premium Outlay</h2>
+          <p className="text-2xl font-bold text-indigo-600">{formatCurrency(totalAnnualPremium)}<span className="ml-1 text-sm font-medium text-slate-400">/ year</span></p>
+          <p className="text-sm text-slate-500">
+            {lifetimePremium !== null
+              ? `${formatCurrency(lifetimePremium)} projected to age ${lifeExpectancy} (${yearsRemaining} more years)`
+              : `Set ${client.name}'s date of birth in Basic Info to project lifetime premium`}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          Assumed life expectancy
+          <input
+            type="number"
+            value={lifeExpectancy}
+            onChange={(e) => setLifeExpectancy(Number(e.target.value))}
+            className="input w-20"
+          />
+        </label>
       </Card>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -166,11 +192,24 @@ export default function PortfolioTab() {
                     </span>
                   </div>
                   <ProgressBar ratio={gap.ratio} status={gap.status} />
+                  <div className="mt-3">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">Annual Premium</label>
+                    <input
+                      type="number"
+                      value={item.premium}
+                      onChange={(e) =>
+                        updatePersonCoverage(selectedPerson.personId, item.category, { premium: Number(e.target.value) })
+                      }
+                      className="input"
+                      placeholder="0"
+                    />
+                  </div>
                   {item.category === 'hospital' ? (
                     <div className="mt-4">
                       <HospitalPlanEditor
                         target={item.target}
                         inForce={item.inForce}
+                        notes={item.notes}
                         onChange={(patch) => updatePersonCoverage(selectedPerson.personId, item.category, patch)}
                       />
                     </div>

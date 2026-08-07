@@ -4,13 +4,21 @@ import { COVERAGE_CATEGORIES } from '../types';
 import type { Portfolio, PortfolioPerson, CoverageItem } from '../types';
 
 export function emptyCoverage(): CoverageItem[] {
-  return COVERAGE_CATEGORIES.map((category) => ({ category, target: 0, inForce: 0, notes: '' }));
+  return COVERAGE_CATEGORIES.map((category) => ({ category, target: 0, inForce: 0, premium: 0, notes: '' }));
 }
 
 export async function getPortfolioForClient(clientId: string): Promise<Portfolio> {
   const db = await getDb();
   const existing = await db.getFromIndex('portfolios', 'clientId', clientId);
-  if (existing) return existing;
+  if (existing) {
+    return {
+      ...existing,
+      people: existing.people.map((person) => ({
+        ...person,
+        coverage: person.coverage.map((c) => ({ ...c, premium: c.premium ?? 0 })),
+      })),
+    };
+  }
   const portfolio: Portfolio = {
     id: newId(),
     clientId,

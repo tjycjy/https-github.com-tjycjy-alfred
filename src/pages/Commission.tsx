@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { listCommissions, addCommission, deleteCommission, listPipeline, addPipelineEntry, updatePipelineEntry, deletePipelineEntry } from '../db/commission';
+import { listCommissions, addCommission, updateCommission, deleteCommission, listPipeline, addPipelineEntry, updatePipelineEntry, deletePipelineEntry } from '../db/commission';
+import { extractStatementLines, guessCommissionCandidates } from '../lib/commissionStatement';
 import { formatDate } from '../lib/age';
 import { formatCurrency } from '../lib/coverageGap';
 import { Card } from '../components/ui/Card';
@@ -8,11 +9,22 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import type { CommissionEntry, PipelineEntry, PipelineStatus } from '../types';
 
+interface StagedCandidate {
+  id: string;
+  date: string;
+  clientName: string;
+  product: string;
+  amount: string;
+}
+
 export default function Commission() {
   const [entries, setEntries] = useState<CommissionEntry[]>([]);
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), clientName: '', product: '', amount: '' });
   const [pipeForm, setPipeForm] = useState({ clientName: '', product: '', amount: '', closeDate: '', status: 'Proposed' as PipelineStatus });
+  const [staged, setStaged] = useState<StagedCandidate[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   const load = async () => {
     setEntries(await listCommissions());
@@ -34,6 +46,68 @@ export default function Commission() {
     });
     setForm({ date: new Date().toISOString().slice(0, 10), clientName: '', product: '', amount: '' });
     await load();
+  };
+
+  const handleStatementUpload = async (file: File) => {
+    setImporting(true);
+    setImportError('');
+    try {
+      const lines = await extractStatementLines(file);
+      const candidates = guessCommissionCandidates(lines);
+      if (candidates.length === 0) {
+        setImportError('No dollar-amount rows detected in this PDF. You can still key in entries manually below.');
+      }
+      setStaged(
+        candidates.map((c) => ({
+          id: crypto.randomUUID(),
+          date: new Date().toISOString().slice(0, 10),
+          clientName: c.clientName,
+          product: c.product,
+          amount: String(c.amount),
+        })),
+      );
+    } catch {
+      setImportError('Could not read that PDF. Make sure it is a text-based (not scanned) commission statement.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const updateStaged = (id: string, patch: Partial<StagedCandidate>) => {
+    setStaged((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+
+  const commitStaged = async (id: string) => {
+    const row = staged.find((s) => s.id === id);
+    if (!row || !row.amount) return;
+    await addCommission({
+      date: new Date(row.date).toISOString(),
+      clientId: null,
+      clientName: row.clientName.trim() || 'Unknown',
+      product: row.product.trim(),
+      amount: Number(row.amount),
+    });
+    setStaged((prev) => prev.filter((s) => s.id !== id));
+    await load();
+  };
+
+  const commitAllStaged = async () => {
+    for (const row of staged) {
+      if (!row.amount) continue;
+      await addCommission({
+        date: new Date(row.date).toISOString(),
+        clientId: null,
+        clientName: row.clientName.trim() || 'Unknown',
+        product: row.product.trim(),
+        amount: Number(row.amount),
+      });
+    }
+    setStaged([]);
+    await load();
+  };
+
+  const discardStaged = (id: string) => {
+    setStaged((prev) => prev.filter((s) => s.id !== id));
   };
 
   const addPipeline = async () => {
@@ -100,6 +174,75 @@ export default function Commission() {
       </Card>
 
       <Card className="p-6">
+        <h2 className="mb-1 text-lg font-bold text-slate-800">Import Commission Statement</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Upload a commission PDF — dollar-amount rows are detected automatically. Review, edit client/product names,
+          then add them to the log below.
+        </p>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100">
+          {importing ? 'Reading PDF…' : 'Choose PDF'}
+          <input
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            disabled={importing}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleStatementUpload(file);
+              e.target.value = '';
+            }}
+          />
+        </label>
+        {importError && <p className="mt-3 text-sm text-amber-600">{importError}</p>}
+
+        {staged.length > 0 && (
+          <div className="mt-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-600">{staged.length} candidate row(s) detected</p>
+              <div className="flex gap-2">
+                <Button onClick={commitAllStaged}>Add All</Button>
+                <button onClick={() => setStaged([])} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
+                  Discard All
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {staged.map((row) => (
+                <div key={row.id} className="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[140px_1fr_1fr_120px_auto_auto]">
+                  <input
+                    type="date"
+                    value={row.date}
+                    onChange={(e) => updateStaged(row.id, { date: e.target.value })}
+                    className="input"
+                  />
+                  <input
+                    value={row.clientName}
+                    onChange={(e) => updateStaged(row.id, { clientName: e.target.value })}
+                    placeholder="Client"
+                    className="input"
+                  />
+                  <input
+                    value={row.product}
+                    onChange={(e) => updateStaged(row.id, { product: e.target.value })}
+                    placeholder="Product"
+                    className="input"
+                  />
+                  <input
+                    type="number"
+                    value={row.amount}
+                    onChange={(e) => updateStaged(row.id, { amount: e.target.value })}
+                    className="input"
+                  />
+                  <Button onClick={() => commitStaged(row.id)}>Add</Button>
+                  <button onClick={() => discardStaged(row.id)} className="text-slate-300 hover:text-rose-500">✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
         <h2 className="mb-4 text-lg font-bold text-slate-800">Commission Log</h2>
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr_1fr_120px_100px]">
           <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" />
@@ -109,18 +252,32 @@ export default function Commission() {
           <Button onClick={addEntry}>Add</Button>
         </div>
         <div className="flex flex-col divide-y divide-slate-100">
-          {entries.map((e) => (
-            <div key={e.id} className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-medium text-slate-800">{e.clientName} — {e.product}</p>
-                <p className="text-sm text-slate-400">{formatDate(e.date)}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-bold text-emerald-600">{formatCurrency(e.amount)}</span>
+          {entries.map((e) => {
+            const patch = async (fields: Partial<CommissionEntry>) => {
+              const updated = { ...e, ...fields };
+              setEntries((prev) => prev.map((x) => (x.id === e.id ? updated : x)));
+              await updateCommission(updated);
+            };
+            return (
+              <div key={e.id} className="grid grid-cols-1 items-center gap-2 py-3 sm:grid-cols-[130px_1fr_1fr_110px_auto]">
+                <input
+                  type="date"
+                  value={e.date.slice(0, 10)}
+                  onChange={(ev) => patch({ date: new Date(ev.target.value).toISOString() })}
+                  className="input"
+                />
+                <input value={e.clientName} onChange={(ev) => patch({ clientName: ev.target.value })} className="input" />
+                <input value={e.product} onChange={(ev) => patch({ product: ev.target.value })} className="input" />
+                <input
+                  type="number"
+                  value={e.amount}
+                  onChange={(ev) => patch({ amount: Number(ev.target.value) })}
+                  className="input font-bold text-emerald-600"
+                />
                 <button onClick={async () => { await deleteCommission(e.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 

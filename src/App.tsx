@@ -34,8 +34,7 @@ const GoalSavingsCalc = lazy(() => import('./pages/calculators/GoalSavingsCalc')
 const PremiumFinancingCalc = lazy(() => import('./pages/calculators/PremiumFinancingCalc'));
 const News = lazy(() => import('./pages/News'));
 const FundTools = lazy(() => import('./pages/FundTools'));
-const Instagram = lazy(() => import('./pages/Instagram'));
-const ObjectionHandling = lazy(() => import('./pages/ObjectionHandling'));
+const Knowledge = lazy(() => import('./pages/Knowledge'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function Gate({ children }: { children: React.ReactNode }) {
@@ -83,8 +82,7 @@ export default function App() {
                   <Route path="calculators/premium-financing" element={<AdvisorOnlyRoute><PremiumFinancingCalc /></AdvisorOnlyRoute>} />
                   <Route path="news" element={<AdvisorOnlyRoute><News /></AdvisorOnlyRoute>} />
                   <Route path="fund-tools" element={<AdvisorOnlyRoute><FundTools /></AdvisorOnlyRoute>} />
-                  <Route path="instagram" element={<AdvisorOnlyRoute><Instagram /></AdvisorOnlyRoute>} />
-                  <Route path="objections" element={<AdvisorOnlyRoute><ObjectionHandling /></AdvisorOnlyRoute>} />
+                  <Route path="knowledge" element={<AdvisorOnlyRoute><Knowledge /></AdvisorOnlyRoute>} />
                   <Route
                     path="clients/:clientId"
                     element={

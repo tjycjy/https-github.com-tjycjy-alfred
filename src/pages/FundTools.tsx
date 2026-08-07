@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listFunds, addFund, deleteFund } from '../db/funds';
+import { listWatchlist, addWatchlistEntry, logWatchlistPrice, deleteWatchlistEntry } from '../db/watchlist';
 import { extractFactsheetText, guessFactsheetFields } from '../lib/fundFactsheet';
 import { compoundInterestSeries } from '../lib/calculators/finance';
 import { formatCurrency } from '../lib/coverageGap';
@@ -9,7 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SliderInput } from '../components/ui/SliderInput';
-import type { FundEntry } from '../types';
+import type { FundEntry, WatchlistEntry } from '../types';
 
 export default function FundTools() {
   const [funds, setFunds] = useState<FundEntry[]>([]);
@@ -35,6 +36,8 @@ export default function FundTools() {
         </div>
         <Button onClick={() => setShowImport(true)}>📄 Import Factsheet</Button>
       </div>
+
+      <MarketWatchlist />
 
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-bold text-slate-800">Fund Database</h2>
@@ -304,6 +307,132 @@ function AllocationSimulator({ funds }: { funds: FundEntry[] }) {
         </>
       ) : (
         <p className="text-sm text-rose-600">Allocation must total 100% before projecting growth.</p>
+      )}
+    </Card>
+  );
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function daysSince(dateStr: string): number {
+  const then = new Date(dateStr).getTime();
+  const now = new Date(today()).getTime();
+  return Math.round((now - then) / (1000 * 60 * 60 * 24));
+}
+
+function MarketWatchlist() {
+  const [entries, setEntries] = useState<WatchlistEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTicker, setNewTicker] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    setEntries(await listWatchlist());
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const logPrice = async (id: string) => {
+    const value = Number(drafts[id]);
+    if (!value) return;
+    await logWatchlistPrice(id, today(), value);
+    setDrafts((d) => ({ ...d, [id]: '' }));
+    await load();
+  };
+
+  const addEntry = async () => {
+    if (!newName.trim() || !newTicker.trim()) return;
+    await addWatchlistEntry(newName.trim(), newTicker.trim());
+    setNewName('');
+    setNewTicker('');
+    setShowAdd(false);
+    await load();
+  };
+
+  return (
+    <Card className="p-6">
+      <h2 className="mb-1 text-lg font-bold text-slate-800">Market Watchlist — GE / Big 4 Insurers / iFAST</h2>
+      <p className="mb-4 text-sm text-slate-500">
+        This is an offline app with no server, so it cannot silently scrape Morningstar or auto-refresh daily — browsers
+        block cross-site scripted access to pages like that. Instead: tap through to Morningstar to check the current
+        quote, then log it here in a few seconds. The app keeps a local price history and flags entries you haven't
+        updated today.
+      </p>
+      {loading ? (
+        <p className="text-slate-400">Loading…</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-slate-100">
+          {entries.map((entry) => {
+            const latest = entry.history[entry.history.length - 1];
+            const prev = entry.history[entry.history.length - 2];
+            const change = latest && prev ? latest.price - prev.price : null;
+            const stale = !latest || daysSince(latest.date) > 0;
+            return (
+              <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                <div>
+                  <p className="font-semibold text-slate-800">{entry.name}</p>
+                  <p className="text-xs text-slate-400">{entry.ticker}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {latest ? (
+                    <div className="text-right">
+                      <p className="font-bold text-slate-800">
+                        {latest.price.toFixed(2)}
+                        {change !== null && (
+                          <span className={`ml-1 text-xs font-semibold ${change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}
+                          </span>
+                        )}
+                      </p>
+                      <p className={`text-xs ${stale ? 'text-amber-600' : 'text-slate-400'}`}>
+                        {daysSince(latest.date) === 0 ? 'Updated today' : `Logged ${formatDate(latest.date)}`}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-600">No price logged yet</p>
+                  )}
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Price"
+                    value={drafts[entry.id] ?? ''}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [entry.id]: e.target.value }))}
+                    className="input w-24"
+                  />
+                  <Button variant="secondary" onClick={() => logPrice(entry.id)}>Log</Button>
+                  <a
+                    href="https://global.morningstar.com/en-ea/stocks"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                  >
+                    Morningstar ↗
+                  </a>
+                  <button onClick={async () => { await deleteWatchlistEntry(entry.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showAdd ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
+          <input placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} className="input max-w-xs" />
+          <input placeholder="Ticker" value={newTicker} onChange={(e) => setNewTicker(e.target.value)} className="input w-32" />
+          <Button onClick={addEntry}>Add</Button>
+          <button onClick={() => setShowAdd(false)} className="text-sm text-slate-400 hover:text-slate-600">Cancel</button>
+        </div>
+      ) : (
+        <button onClick={() => setShowAdd(true)} className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+          + Track another ticker
+        </button>
       )}
     </Card>
   );

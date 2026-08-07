@@ -10,8 +10,7 @@ const ALL_TABS = [
   { to: '/whiteboard', label: 'Board', icon: '✏️' },
   { to: '/news', label: 'News', icon: '📰' },
   { to: '/fund-tools', label: 'Funds', icon: '📊' },
-  { to: '/instagram', label: 'IG', icon: '📸' },
-  { to: '/objections', label: 'FAQ', icon: '🗣️' },
+  { to: '/knowledge', label: 'Ask', icon: '💬' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 

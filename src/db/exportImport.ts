@@ -9,7 +9,9 @@ import type {
   CommissionEntry,
   PipelineEntry,
   PracticeGoal,
-  Referral,
+  NewsBriefing,
+  FundEntry,
+  WatchlistEntry,
 } from '../types';
 
 export interface ExportBundle {
@@ -24,7 +26,9 @@ export interface ExportBundle {
   commissions: CommissionEntry[];
   pipeline: PipelineEntry[];
   goals: PracticeGoal[];
-  referrals: Referral[];
+  news: NewsBriefing[];
+  funds: FundEntry[];
+  watchlist: WatchlistEntry[];
 }
 
 const STORE_NAMES = [
@@ -37,7 +41,9 @@ const STORE_NAMES = [
   'commissions',
   'pipeline',
   'goals',
-  'referrals',
+  'news',
+  'funds',
+  'watchlist',
 ] as const;
 
 export async function exportAllData(): Promise<ExportBundle> {

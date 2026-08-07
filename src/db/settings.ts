@@ -8,7 +8,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   contact: '',
   photo: null,
   licenses: '',
-  ceDeadline: null,
   pinHash: null,
   pinSalt: null,
   webauthnCredentialId: null,
@@ -19,6 +18,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   onboardingComplete: false,
   summaryEndpointUrl: null,
   summaryApiKey: null,
+  knowledgeEndpointUrl: null,
+  knowledgeApiKey: null,
   theme: 'system',
 };
 

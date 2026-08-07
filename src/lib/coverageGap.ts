@@ -45,6 +45,7 @@ export function combineCoverage(items: CoverageItem[][]): CoverageItem[] {
       category,
       target: matching.reduce((sum, i) => sum + (i.target ?? 0), 0),
       inForce: matching.reduce((sum, i) => sum + (i.inForce ?? 0), 0),
+      premium: matching.reduce((sum, i) => sum + (i.premium ?? 0), 0),
       notes: '',
     };
   });

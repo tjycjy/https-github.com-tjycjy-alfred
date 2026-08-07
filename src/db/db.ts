@@ -9,13 +9,13 @@ import type {
   CommissionEntry,
   PipelineEntry,
   PracticeGoal,
-  Referral,
   AppSettings,
   Brochure,
   MeetingRecording,
   NewsBriefing,
   FundEntry,
-  ObjectionEntry,
+  KnowledgeDoc,
+  WatchlistEntry,
 } from '../types';
 
 interface FaDashboardSchema extends DBSchema {
@@ -28,17 +28,17 @@ interface FaDashboardSchema extends DBSchema {
   commissions: { key: string; value: CommissionEntry };
   pipeline: { key: string; value: PipelineEntry };
   goals: { key: string; value: PracticeGoal };
-  referrals: { key: string; value: Referral };
   settings: { key: string; value: AppSettings };
   brochures: { key: string; value: Brochure };
   recordings: { key: string; value: MeetingRecording; indexes: { meetingId: string } };
   news: { key: string; value: NewsBriefing };
   funds: { key: string; value: FundEntry };
-  objections: { key: string; value: ObjectionEntry };
+  knowledgeDocs: { key: string; value: KnowledgeDoc };
+  watchlist: { key: string; value: WatchlistEntry };
 }
 
 const DB_NAME = 'fa-dashboard';
-const DB_VERSION = 4;
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<FaDashboardSchema>> | null = null;
 
@@ -46,6 +46,9 @@ export function getDb(): Promise<IDBPDatabase<FaDashboardSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<FaDashboardSchema>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
+        // Historical store names ('referrals', 'objections') no longer exist in the current
+        // schema type — the raw native handle lets migration code still create/drop them.
+        const rawDb = db as unknown as IDBDatabase;
         if (oldVersion < 1) {
           db.createObjectStore('clients', { keyPath: 'id' }).createIndex('householdId', 'householdId');
           db.createObjectStore('households', { keyPath: 'id' });
@@ -58,7 +61,7 @@ export function getDb(): Promise<IDBPDatabase<FaDashboardSchema>> {
           db.createObjectStore('commissions', { keyPath: 'id' });
           db.createObjectStore('pipeline', { keyPath: 'id' });
           db.createObjectStore('goals', { keyPath: 'id' });
-          db.createObjectStore('referrals', { keyPath: 'id' });
+          rawDb.createObjectStore('referrals', { keyPath: 'id' });
           db.createObjectStore('settings', { keyPath: 'id' });
         }
         if (oldVersion < 2) {
@@ -70,7 +73,16 @@ export function getDb(): Promise<IDBPDatabase<FaDashboardSchema>> {
         if (oldVersion < 4) {
           db.createObjectStore('news', { keyPath: 'id' });
           db.createObjectStore('funds', { keyPath: 'id' });
-          db.createObjectStore('objections', { keyPath: 'id' });
+          rawDb.createObjectStore('objections', { keyPath: 'id' });
+        }
+        if (oldVersion < 5) {
+          // Referral tracker and objection-handling crib sheet were removed — drop their stores.
+          if (rawDb.objectStoreNames.contains('referrals')) rawDb.deleteObjectStore('referrals');
+          if (rawDb.objectStoreNames.contains('objections')) rawDb.deleteObjectStore('objections');
+          db.createObjectStore('knowledgeDocs', { keyPath: 'id' });
+        }
+        if (oldVersion < 6) {
+          db.createObjectStore('watchlist', { keyPath: 'id' });
         }
       },
     });

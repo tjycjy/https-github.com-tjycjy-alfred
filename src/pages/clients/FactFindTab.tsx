@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { getFactFindForClient, saveFactFind } from '../../db/factfind';
 import { newId } from '../../lib/id';
 import { calcAge } from '../../lib/age';
-import { retirementNestEgg } from '../../lib/calculators/finance';
+import { retirementNestEgg, requiredMonthlyContribution } from '../../lib/calculators/finance';
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { SliderInput } from '../../components/ui/SliderInput';
 import { useClientTab } from './ClientTabContext';
-import type { FactFind, LiabilityItem } from '../../types';
+import type { FactFind, LiabilityItem, SavingsGoal } from '../../types';
 
 const RISK_PROFILES = ['Conservative', 'Moderate', 'Balanced', 'Growth', 'Aggressive'];
+const GOAL_PRESETS = ['Car', "Children's Education", 'Marriage / Wedding', 'House Down Payment', 'Travel', 'Other'];
 
 export default function FactFindTab() {
   const { client } = useClientTab();
@@ -99,6 +100,8 @@ export default function FactFindTab() {
       </Card>
 
       <RetirementGoalsCard factFind={factFind} setFactFind={setFactFind} />
+
+      <SavingsGoalsCard factFind={factFind} setFactFind={setFactFind} />
 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
@@ -263,5 +266,143 @@ function RetirementGoalsCard({
         )}
       </div>
     </Card>
+  );
+}
+
+function SavingsGoalsCard({
+  factFind,
+  setFactFind,
+}: {
+  factFind: FactFind;
+  setFactFind: (f: FactFind) => void;
+}) {
+  const goals = factFind.savingsGoals;
+
+  const addGoal = () => {
+    const goal: SavingsGoal = {
+      id: newId(),
+      purpose: GOAL_PRESETS[0],
+      targetAmount: 50000,
+      targetYears: 5,
+      currentSavings: 0,
+      adjustForInflation: false,
+      inflationPct: 2.5,
+      expectedReturnPct: 4,
+    };
+    setFactFind({ ...factFind, savingsGoals: [...goals, goal] });
+  };
+
+  const updateGoal = (id: string, patch: Partial<SavingsGoal>) => {
+    setFactFind({ ...factFind, savingsGoals: goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+  };
+
+  const removeGoal = (id: string) => {
+    setFactFind({ ...factFind, savingsGoals: goals.filter((g) => g.id !== id) });
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-800">Savings Goals</h2>
+        <Button variant="secondary" onClick={addGoal}>+ Add Goal</Button>
+      </div>
+      <p className="mb-4 text-sm text-slate-500">
+        Anything the client is saving toward besides retirement — a car, kids' education, a wedding, and so on.
+      </p>
+      {goals.length === 0 ? (
+        <p className="text-slate-400">No savings goals added yet.</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {goals.map((goal) => (
+            <SavingsGoalRow key={goal.id} goal={goal} onChange={(patch) => updateGoal(goal.id, patch)} onRemove={() => removeGoal(goal.id)} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function SavingsGoalRow({
+  goal,
+  onChange,
+  onRemove,
+}: {
+  goal: SavingsGoal;
+  onChange: (patch: Partial<SavingsGoal>) => void;
+  onRemove: () => void;
+}) {
+  const effectiveTarget = goal.adjustForInflation
+    ? goal.targetAmount * Math.pow(1 + goal.inflationPct / 100, goal.targetYears)
+    : goal.targetAmount;
+
+  const monthly = useMemo(
+    () => requiredMonthlyContribution(effectiveTarget, goal.targetYears, goal.expectedReturnPct, goal.currentSavings),
+    [effectiveTarget, goal.targetYears, goal.expectedReturnPct, goal.currentSavings],
+  );
+
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <select value={goal.purpose} onChange={(e) => onChange({ purpose: e.target.value })} className="input max-w-xs">
+          {GOAL_PRESETS.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <button onClick={onRemove} className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100">
+          Remove
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Target amount (today's $)</label>
+          <input type="number" value={goal.targetAmount} onChange={(e) => onChange({ targetAmount: Number(e.target.value) })} className="input" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Timeframe (years)</label>
+          <input type="number" value={goal.targetYears} onChange={(e) => onChange({ targetYears: Number(e.target.value) })} className="input" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Current savings toward this</label>
+          <input type="number" value={goal.currentSavings} onChange={(e) => onChange({ currentSavings: Number(e.target.value) })} className="input" />
+        </div>
+      </div>
+
+      <label className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-600">
+        <input type="checkbox" checked={goal.adjustForInflation} onChange={(e) => onChange({ adjustForInflation: e.target.checked })} />
+        Adjust for inflation
+      </label>
+
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {goal.adjustForInflation && (
+          <SliderInput
+            label="Assumed inflation"
+            value={goal.inflationPct}
+            min={0}
+            max={6}
+            step={0.1}
+            format={(v) => `${v.toFixed(1)}%`}
+            onChange={(v) => onChange({ inflationPct: v })}
+          />
+        )}
+        <SliderInput
+          label="Assumed return"
+          value={goal.expectedReturnPct}
+          min={0}
+          max={10}
+          step={0.1}
+          format={(v) => `${v.toFixed(1)}%`}
+          onChange={(v) => onChange({ expectedReturnPct: v })}
+        />
+      </div>
+
+      <div className="mt-3 rounded-lg bg-white p-3">
+        <p className="text-sm text-slate-500">
+          Required monthly savings: <span className="font-bold text-slate-800">{formatCurrency(Math.round(monthly))}</span>
+          {goal.adjustForInflation && (
+            <span className="text-slate-400"> (target inflated to {formatCurrency(Math.round(effectiveTarget))})</span>
+          )}
+        </p>
+      </div>
+    </div>
   );
 }
