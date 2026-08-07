@@ -5,6 +5,23 @@ export interface FeedHeadline {
   description: string;
 }
 
+// Briefing sections are stored as either a JSON array of FeedHeadline (from Auto-Refresh)
+// or legacy newline-separated plain text (from manual paste, or pre-structured-storage saves).
+export function parseHeadlines(text: string): FeedHeadline[] {
+  if (!text.trim()) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed as FeedHeadline[];
+  } catch {
+    // legacy plain-text briefings predate structured storage — fall through
+  }
+  return text
+    .split('\n')
+    .map((line) => line.replace(/^[-•*\d.)\s]+/, '').trim())
+    .filter(Boolean)
+    .map((title) => ({ title, link: '', image: '', description: '' }));
+}
+
 const REGULATORY_KEYWORDS = [
   'insur', 'mas ', 'cpf', 'bank', 'financ', 'invest', 'fund', 'premium',
   'regulat', 'tax', 'retirement', 'wealth', 'policy', 'insolven', 'compliance',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getBriefing, saveBriefing } from '../db/news';
-import { fetchAutoBriefing, type FeedHeadline } from '../lib/newsFeeds';
+import { fetchAutoBriefing, parseHeadlines, type FeedHeadline } from '../lib/newsFeeds';
 import { formatDateTime } from '../lib/age';
 import { Button } from '../components/ui/Button';
 import type { NewsBriefing } from '../types';
@@ -12,21 +12,6 @@ function formatTimestamp(iso: string | null): string {
 
 function emptyHeadline(title: string): FeedHeadline {
   return { title, link: '', image: '', description: '' };
-}
-
-function parseHeadlines(text: string): FeedHeadline[] {
-  if (!text.trim()) return [];
-  try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) return parsed as FeedHeadline[];
-  } catch {
-    // legacy plain-text briefings predate structured storage — fall through
-  }
-  return text
-    .split('\n')
-    .map((line) => line.replace(/^[-•*\d.)\s]+/, '').trim())
-    .filter(Boolean)
-    .map(emptyHeadline);
 }
 
 function serializeHeadlines(headlines: FeedHeadline[]): string {
