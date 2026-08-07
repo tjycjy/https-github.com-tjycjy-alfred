@@ -16,6 +16,8 @@ import type {
   FundEntry,
   KnowledgeDoc,
   FinancialProfile,
+  CalendarEvent,
+  Prospect,
 } from '../types';
 
 interface FaDashboardSchema extends DBSchema {
@@ -35,10 +37,12 @@ interface FaDashboardSchema extends DBSchema {
   funds: { key: string; value: FundEntry };
   knowledgeDocs: { key: string; value: KnowledgeDoc };
   financialProfiles: { key: string; value: FinancialProfile; indexes: { clientId: string } };
+  calendarEvents: { key: string; value: CalendarEvent; indexes: { date: string } };
+  prospects: { key: string; value: Prospect; indexes: { status: string } };
 }
 
 const DB_NAME = 'fa-dashboard';
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 let dbPromise: Promise<IDBPDatabase<FaDashboardSchema>> | null = null;
 
@@ -90,6 +94,10 @@ export function getDb(): Promise<IDBPDatabase<FaDashboardSchema>> {
         }
         if (oldVersion < 8) {
           db.createObjectStore('financialProfiles', { keyPath: 'id' }).createIndex('clientId', 'clientId');
+        }
+        if (oldVersion < 9) {
+          db.createObjectStore('calendarEvents', { keyPath: 'id' }).createIndex('date', 'date');
+          db.createObjectStore('prospects', { keyPath: 'id' }).createIndex('status', 'status');
         }
       },
     });

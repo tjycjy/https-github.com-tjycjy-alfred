@@ -324,3 +324,35 @@ export interface Brochure {
   addedAt: string;
   lastOpenedAt: string;
 }
+
+export const EVENT_TYPES = ['Appointment', 'Meeting', 'Course', 'Other'] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+
+export interface CalendarEvent {
+  id: UUID;
+  title: string;
+  type: EventType;
+  date: string; // yyyy-mm-dd
+  time: string | null; // HH:mm
+  notes: string;
+  clientId: UUID | null;
+  createdAt: string;
+}
+
+export const PROSPECT_STATUSES = ['New', 'Contacted', 'Meeting Booked', 'Proposal Sent', 'Not Interested', 'Converted'] as const;
+export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
+
+export interface Prospect {
+  id: UUID;
+  name: string;
+  phone: string;
+  email: string;
+  source: string;
+  firstMeetingNotes: string;
+  nextApproach: string;
+  nextApproachDate: string | null;
+  status: ProspectStatus;
+  convertedClientId: UUID | null;
+  createdAt: string;
+  updatedAt: string;
+}

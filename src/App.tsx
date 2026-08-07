@@ -15,6 +15,9 @@ const Tasks = lazy(() => import('./pages/Tasks'));
 const Commission = lazy(() => import('./pages/Commission'));
 const Goals = lazy(() => import('./pages/Goals'));
 const Settings = lazy(() => import('./pages/Settings'));
+const CalendarPage = lazy(() => import('./pages/Calendar'));
+const Prospects = lazy(() => import('./pages/Prospects'));
+const ProspectDetail = lazy(() => import('./pages/ProspectDetail'));
 const ClientList = lazy(() => import('./pages/clients/ClientList'));
 const ClientProfile = lazy(() => import('./pages/clients/ClientProfile'));
 const BasicInfoTab = lazy(() => import('./pages/clients/BasicInfoTab'));
@@ -74,6 +77,9 @@ export default function App() {
                   <Route path="goals" element={<AdvisorOnlyRoute><Goals /></AdvisorOnlyRoute>} />
                   <Route path="settings" element={<AdvisorOnlyRoute><Settings /></AdvisorOnlyRoute>} />
                   <Route path="clients" element={<AdvisorOnlyRoute><ClientList /></AdvisorOnlyRoute>} />
+                  <Route path="calendar" element={<AdvisorOnlyRoute><CalendarPage /></AdvisorOnlyRoute>} />
+                  <Route path="prospects" element={<AdvisorOnlyRoute><Prospects /></AdvisorOnlyRoute>} />
+                  <Route path="prospects/:prospectId" element={<AdvisorOnlyRoute><ProspectDetail /></AdvisorOnlyRoute>} />
                   <Route path="whiteboard" element={<Whiteboard />} />
                   <Route path="calculators" element={<AdvisorOnlyRoute><CalculatorsHome /></AdvisorOnlyRoute>} />
                   <Route path="calculators/compound-interest" element={<AdvisorOnlyRoute><CompoundInterestCalc /></AdvisorOnlyRoute>} />

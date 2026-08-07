@@ -3,6 +3,8 @@ import { NavLink } from 'react-router-dom';
 const ALL_TABS = [
   { to: '/', label: 'Home', icon: '🏠', end: true },
   { to: '/clients', label: 'Clients', icon: '👥' },
+  { to: '/prospects', label: 'Prospects', icon: '🌱' },
+  { to: '/calendar', label: 'Calendar', icon: '📅' },
   { to: '/tasks', label: 'Tasks', icon: '✅' },
   { to: '/commission', label: 'Commission', icon: '💰' },
   { to: '/goals', label: 'Goals', icon: '🎯' },
