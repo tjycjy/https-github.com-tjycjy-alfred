@@ -4,6 +4,7 @@ import { exportAllData, downloadExport, importData, parseImportFile } from '../d
 import { useAuth } from '../state/AuthContext';
 import { useTheme, type ThemePreference } from '../state/ThemeContext';
 import { formatDateTime } from '../lib/age';
+import { shareNameCard } from '../lib/nameCard';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PinPad } from '../components/lock/PinPad';
@@ -83,19 +84,29 @@ export default function Settings() {
             <input value={settings.advisorName} onChange={(e) => setSettings({ ...settings, advisorName: e.target.value })} className="input" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">GE registration / credential no.</label>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Registration / credential no.</label>
             <input value={settings.registrationNumber} onChange={(e) => setSettings({ ...settings, registrationNumber: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Company (e.g. Great Eastern, AIA, Prudential)</label>
+            <input value={settings.companyName} onChange={(e) => setSettings({ ...settings, companyName: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Agency</label>
+            <input value={settings.agencyName} onChange={(e) => setSettings({ ...settings, agencyName: e.target.value })} className="input" />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Contact details</label>
             <input value={settings.contact} onChange={(e) => setSettings({ ...settings, contact: e.target.value })} className="input" />
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Licenses held (e.g. CMFAS papers)</label>
             <input value={settings.licenses} onChange={(e) => setSettings({ ...settings, licenses: e.target.value })} className="input" placeholder="M5, M8, M9, M9A, HI…" />
           </div>
         </div>
       </Card>
+
+      <NameCardCard settings={settings} setSettings={setSettings} />
 
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-bold text-slate-800">Appearance</h2>
@@ -312,5 +323,77 @@ function PinSetupFlow({ onDone, setupPin }: { onDone: () => void; setupPin: (pin
       <p className="text-slate-500">{first ? 'Confirm your 6-digit PIN' : 'Enter a new 6-digit PIN'}</p>
       <PinPad onSubmit={handleEntry} error={error} />
     </div>
+  );
+}
+
+function NameCardCard({ settings, setSettings }: { settings: AppSettings; setSettings: (s: AppSettings) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
+
+  const handleUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setSettings({ ...settings, namecard: reader.result as string });
+    reader.readAsDataURL(file);
+  };
+
+  const generateCard = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1000;
+    canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const gradient = ctx.createLinearGradient(0, 0, 1000, 600);
+    gradient.addColorStop(0, '#4f46e5');
+    gradient.addColorStop(1, '#312e81');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1000, 600);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 56px system-ui, sans-serif';
+    ctx.fillText(settings.advisorName || 'Your Name', 60, 160);
+
+    ctx.font = '32px system-ui, sans-serif';
+    ctx.fillStyle = '#e0e7ff';
+    const companyLine = [settings.companyName, settings.agencyName].filter(Boolean).join(' · ');
+    const lines = [companyLine, settings.registrationNumber ? `Reg. No. ${settings.registrationNumber}` : '', settings.contact].filter(Boolean);
+    lines.forEach((line, i) => ctx.fillText(line as string, 60, 230 + i * 48));
+
+    setSettings({ ...settings, namecard: canvas.toDataURL('image/png') });
+  };
+
+  const shareCard = async () => {
+    if (!settings.namecard) return;
+    setSharing(true);
+    const result = await shareNameCard(settings.namecard, settings.advisorName, settings.contact);
+    setShareMsg(result.message);
+    setSharing(false);
+  };
+
+  return (
+    <Card className="p-6">
+      <h2 className="mb-2 text-lg font-bold text-slate-800">Name Card</h2>
+      <p className="mb-4 text-slate-500">
+        Upload your own name card image, or generate a simple one from your profile above. Share it directly to a
+        client via WhatsApp, Messages, AirDrop, or email.
+      </p>
+      {settings.namecard && (
+        <img src={settings.namecard} alt="Name card preview" className="mb-4 w-full max-w-sm rounded-xl border border-slate-200" />
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+      />
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>Upload Image</Button>
+        <Button variant="secondary" onClick={generateCard}>Generate from Profile</Button>
+        <Button onClick={shareCard} disabled={!settings.namecard || sharing}>{sharing ? 'Sharing…' : '📤 Share Name Card'}</Button>
+      </div>
+      {shareMsg && <p className="mt-2 text-sm text-amber-600">{shareMsg}</p>}
+    </Card>
   );
 }

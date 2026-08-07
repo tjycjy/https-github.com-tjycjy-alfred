@@ -5,6 +5,7 @@ import { listAllTasks } from '../db/tasks';
 import { getSettings } from '../db/settings';
 import { buildReminders } from '../lib/reminders';
 import { formatDate } from '../lib/age';
+import { shareNameCard } from '../lib/nameCard';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -18,6 +19,8 @@ export default function Home() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [openTasks, setOpenTasks] = useState<Task[]>([]);
+  const [sharing, setSharing] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
 
   const load = async () => {
     const [clients, tasks, s] = await Promise.all([listClients(), listAllTasks(), getSettings()]);
@@ -30,21 +33,38 @@ export default function Home() {
     load();
   }, []);
 
+  const handleShareNameCard = async () => {
+    if (!settings?.namecard) return;
+    setSharing(true);
+    const result = await shareNameCard(settings.namecard, settings.advisorName, settings.contact);
+    setShareMsg(result.message);
+    setSharing(false);
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <Card className="flex flex-wrap items-center gap-5 p-6">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-indigo-100 text-2xl font-bold text-indigo-600">
+      <Card className="flex flex-col items-center gap-4 p-8 text-center">
+        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-4xl font-bold text-indigo-600">
           {settings?.photo ? <img src={settings.photo} alt="" className="h-full w-full object-cover" /> : (settings?.advisorName?.[0] ?? 'FA')}
         </div>
-        <div className="flex-1">
+        <div>
           <h1 className="text-2xl font-bold text-slate-800">{settings?.advisorName || 'Set up your profile'}</h1>
           <p className="text-slate-500">
+            {[settings?.companyName, settings?.agencyName].filter(Boolean).join(' · ') || 'No company set'}
+          </p>
+          <p className="text-sm text-slate-400">
             {settings?.registrationNumber ? `Reg. No. ${settings.registrationNumber}` : 'No registration number set'}
             {settings?.contact && ` · ${settings.contact}`}
           </p>
           {settings?.licenses && <p className="text-sm text-slate-400">Licenses: {settings.licenses}</p>}
         </div>
-        <Button variant="secondary" onClick={() => navigate('/settings')}>Edit Profile</Button>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button variant="secondary" onClick={() => navigate('/settings')}>Edit Profile</Button>
+          {settings?.namecard && (
+            <Button onClick={handleShareNameCard} disabled={sharing}>{sharing ? 'Sharing…' : '📤 Share Name Card'}</Button>
+          )}
+        </div>
+        {shareMsg && <p className="text-sm text-amber-600">{shareMsg}</p>}
       </Card>
 
       <Card className="p-6">

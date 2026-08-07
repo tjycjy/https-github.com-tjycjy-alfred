@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'A.L.F.R.E.D. — Assets, Liabilities, Financial Review & Evaluation Directory',
         short_name: 'A.L.F.R.E.D.',
-        description: 'Offline-first practice dashboard for Great Eastern FA Representatives',
+        description: 'Offline-first practice dashboard for Financial Adviser Representatives',
         start_url: '/',
         display: 'standalone',
         background_color: '#f4f6f8',

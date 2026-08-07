@@ -7,7 +7,7 @@ import { useAuth } from '../../state/AuthContext';
 import { useTheme } from '../../state/ThemeContext';
 
 export function AppShell() {
-  const { mode, activeClientId } = useAppMode();
+  const { mode, activeClientId, privacyMode, togglePrivacyMode } = useAppMode();
   const { pinConfigured, biometricConfigured, lock } = useAuth();
   const { resolvedDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -29,6 +29,13 @@ export function AppShell() {
 
           <div className="flex items-center gap-3">
             <ClientModeToggle />
+            <button
+              onClick={togglePrivacyMode}
+              title={privacyMode ? 'Client names hidden — tap to reveal' : 'Client names visible — tap to hide'}
+              className="rounded-full p-2.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              {privacyMode ? '🙈' : '👁️'}
+            </button>
             <button
               onClick={toggleTheme}
               title={resolvedDark ? 'Switch to light mode' : 'Switch to dark mode'}

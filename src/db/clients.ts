@@ -6,7 +6,7 @@ export async function listClients(): Promise<Client[]> {
   const db = await getDb();
   const all = await db.getAll('clients');
   return all
-    .map((c) => ({ ...c, employmentType: c.employmentType ?? 'Employed' }))
+    .map((c) => ({ ...c, employmentType: c.employmentType ?? 'Employed', phone: c.phone ?? '' }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -14,7 +14,7 @@ export async function getClient(id: string): Promise<Client | undefined> {
   const db = await getDb();
   const client = await db.get('clients', id);
   if (!client) return undefined;
-  return { ...client, employmentType: client.employmentType ?? 'Employed' };
+  return { ...client, employmentType: client.employmentType ?? 'Employed', phone: client.phone ?? '' };
 }
 
 export async function createClient(input: {
@@ -23,6 +23,7 @@ export async function createClient(input: {
   occupation: string;
   employmentType?: Client['employmentType'];
   salary: number | null;
+  phone?: string;
   address: string;
   notes: string;
   familyMembers?: FamilyMember[];
@@ -36,6 +37,7 @@ export async function createClient(input: {
     occupation: input.occupation,
     employmentType: input.employmentType ?? 'Employed',
     salary: input.salary,
+    phone: input.phone ?? '',
     address: input.address,
     familyMembers: input.familyMembers ?? [],
     notes: input.notes,

@@ -4,9 +4,12 @@ import type { AppSettings } from '../types';
 const DEFAULT_SETTINGS: AppSettings = {
   id: 'settings',
   advisorName: '',
+  companyName: '',
+  agencyName: '',
   registrationNumber: '',
   contact: '',
   photo: null,
+  namecard: null,
   licenses: '',
   pinHash: null,
   pinSalt: null,

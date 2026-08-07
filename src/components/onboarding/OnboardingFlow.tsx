@@ -14,6 +14,8 @@ export function OnboardingFlow() {
   const [advisorName, setAdvisorName] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [registrationNumber, setRegistrationNumber] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [agencyName, setAgencyName] = useState('');
   const [contact, setContact] = useState('');
   const [licenses, setLicenses] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +35,8 @@ export function OnboardingFlow() {
   const saveCredentialsStep = async () => {
     const settings = await getSettings();
     settings.registrationNumber = registrationNumber.trim();
+    settings.companyName = companyName.trim();
+    settings.agencyName = agencyName.trim();
     settings.contact = contact.trim();
     settings.licenses = licenses.trim();
     await saveSettings(settings);
@@ -109,8 +113,18 @@ export function OnboardingFlow() {
               <p className="text-slate-500">Registration details for client-facing reports.</p>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">GE registration / credential no.</label>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Registration / credential no.</label>
               <input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="input" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">Company</label>
+                <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="input" placeholder="e.g. Great Eastern" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">Agency</label>
+                <input value={agencyName} onChange={(e) => setAgencyName(e.target.value)} className="input" />
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">Contact details</label>

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { listClients, createClient } from '../../db/clients';
 import { getSettings } from '../../db/settings';
 import { calcAge, formatDate, monthsSince } from '../../lib/age';
+import { censorName, censorPhone } from '../../lib/privacy';
+import { useAppMode } from '../../state/AppModeContext';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +13,7 @@ import type { Client } from '../../types';
 
 export default function ClientList() {
   const navigate = useNavigate();
+  const { privacyMode } = useAppMode();
   const [clients, setClients] = useState<Client[]>([]);
   const [cadence, setCadence] = useState(6);
   const [search, setSearch] = useState('');
@@ -66,11 +69,14 @@ export default function ClientList() {
               <Card key={client.id} className="p-5" onClick={() => navigate(`/clients/${client.id}/basic-info`)}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800">{client.name}</h3>
+                    <h3 className="text-lg font-bold text-slate-800">{privacyMode ? censorName(client.name) : client.name}</h3>
                     <p className="text-sm text-slate-500">
                       {client.occupation || 'No occupation set'}
                       {calcAge(client.dob) !== null && ` · Age ${calcAge(client.dob)}`}
                     </p>
+                    {client.phone && (
+                      <p className="text-sm text-slate-400">{privacyMode ? censorPhone(client.phone) : client.phone}</p>
+                    )}
                   </div>
                   {overdue && <Badge tone="red">Overdue</Badge>}
                   {dueSoon && <Badge tone="amber">Due soon</Badge>}

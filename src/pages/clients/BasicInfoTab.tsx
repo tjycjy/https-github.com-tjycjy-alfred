@@ -19,6 +19,7 @@ export default function BasicInfoTab() {
     occupation: client.occupation,
     employmentType: client.employmentType,
     salary: client.salary ?? '',
+    phone: client.phone,
     address: client.address,
     notes: client.notes,
   });
@@ -35,6 +36,7 @@ export default function BasicInfoTab() {
       occupation: form.occupation,
       employmentType: form.employmentType,
       salary: form.salary === '' ? null : Number(form.salary),
+      phone: form.phone,
       address: form.address,
       notes: form.notes,
       familyMembers: family,
@@ -101,6 +103,15 @@ export default function BasicInfoTab() {
               value={form.salary}
               onChange={(e) => setForm((f) => ({ ...f, salary: e.target.value }))}
               className="input"
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              className="input"
+              placeholder="+65 9123 4567"
             />
           </Field>
           <Field label="Address" full>

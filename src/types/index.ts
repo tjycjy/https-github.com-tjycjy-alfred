@@ -49,6 +49,7 @@ export interface Client {
   occupation: string;
   employmentType: EmploymentType;
   salary: number | null;
+  phone: string;
   address: string;
   familyMembers: FamilyMember[];
   notes: string;
@@ -176,9 +177,12 @@ export interface PracticeGoal {
 export interface AppSettings {
   id: 'settings';
   advisorName: string;
+  companyName: string;
+  agencyName: string;
   registrationNumber: string;
   contact: string;
   photo: string | null;
+  namecard: string | null;
   licenses: string;
   pinHash: string | null;
   pinSalt: string | null;

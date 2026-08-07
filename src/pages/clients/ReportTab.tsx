@@ -109,8 +109,9 @@ export default function ReportTab() {
               <div>
                 <p className="font-bold text-slate-800">{settings.advisorName || 'Financial Adviser'}</p>
                 <p className="text-sm text-slate-500">
-                  {settings.registrationNumber ? `Reg. No. ${settings.registrationNumber}` : 'Great Eastern Financial Adviser'}
+                  {[settings.companyName, settings.agencyName].filter(Boolean).join(' · ') || 'Financial Adviser'}
                 </p>
+                {settings.registrationNumber && <p className="text-sm text-slate-500">Reg. No. {settings.registrationNumber}</p>}
                 {settings.contact && <p className="text-sm text-slate-500">{settings.contact}</p>}
               </div>
             </div>

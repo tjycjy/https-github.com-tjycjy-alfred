@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { getClient } from '../../db/clients';
 import { getHousehold } from '../../db/households';
 import { calcAge, formatDate } from '../../lib/age';
+import { censorName } from '../../lib/privacy';
 import { useAppMode } from '../../state/AppModeContext';
 import { Button } from '../../components/ui/Button';
 import type { Client, Household } from '../../types';
@@ -20,7 +21,7 @@ const TABS = [
 export default function ClientProfile() {
   const { clientId } = useParams();
   const navigate = useNavigate();
-  const { mode, setActiveClientId, enterClientMode } = useAppMode();
+  const { mode, setActiveClientId, enterClientMode, privacyMode } = useAppMode();
   const [client, setClient] = useState<Client | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,8 @@ export default function ClientProfile() {
 
   const isClientMode = mode === 'client';
   const visibleTabs = isClientMode ? TABS.filter((t) => t.to === 'portfolio') : TABS;
+  // Never censor in front of the client themselves — only when the advisor is browsing their own book.
+  const displayName = !isClientMode && privacyMode ? censorName(client.name) : client.name;
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,7 +69,7 @@ export default function ClientProfile() {
               ← All Clients
             </button>
           )}
-          <h1 className="text-2xl font-bold text-slate-800">{client.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{displayName}</h1>
           <p className="text-slate-500">
             {calcAge(client.dob) !== null && `Age ${calcAge(client.dob)} · `}
             {client.occupation || 'No occupation set'}
