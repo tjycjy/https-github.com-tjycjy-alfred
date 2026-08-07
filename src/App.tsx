@@ -7,6 +7,7 @@ import { AppShell } from './components/layout/AppShell';
 import { AdvisorOnlyRoute, ClientModeRestrictedRoute } from './components/layout/ClientModeGuard';
 import { LockScreen } from './components/lock/LockScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { UpdatePrompt } from './components/layout/UpdatePrompt';
 
 const Home = lazy(() => import('./pages/Home'));
 const Tasks = lazy(() => import('./pages/Tasks'));
@@ -58,6 +59,7 @@ export default function App() {
     <ThemeProvider>
     <AuthProvider>
       <AppModeProvider>
+        <UpdatePrompt />
         <BrowserRouter>
           <Gate>
             <Suspense fallback={<PageLoading />}>

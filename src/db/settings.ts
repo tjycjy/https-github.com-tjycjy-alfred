@@ -20,6 +20,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   summaryApiKey: null,
   knowledgeEndpointUrl: null,
   knowledgeApiKey: null,
+  fundEndpointUrl: null,
+  fundApiKey: null,
   theme: 'system',
 };
 

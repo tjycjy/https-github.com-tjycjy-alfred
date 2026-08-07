@@ -221,6 +221,35 @@ export default function Settings() {
         </div>
       </Card>
 
+      <Card className="p-6">
+        <h2 className="mb-2 text-lg font-bold text-slate-800">Fund Tools — Live Data Endpoint (Advanced)</h2>
+        <p className="mb-4 text-slate-500">
+          Browsers block this app from silently scraping Morningstar directly — there's no way around that without a
+          server. If you (or your IT team) run a backend that fetches fund data and returns it as JSON, point Fund
+          Tools at it here and the "Add Fund" screen will offer a live fetch instead of paste/manual entry.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Fund data endpoint URL</label>
+            <input
+              value={settings.fundEndpointUrl ?? ''}
+              onChange={(e) => setSettings({ ...settings, fundEndpointUrl: e.target.value || null })}
+              className="input"
+              placeholder="https://your-endpoint.example.com/fund-quote"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">API key (optional)</label>
+            <input
+              type="password"
+              value={settings.fundApiKey ?? ''}
+              onChange={(e) => setSettings({ ...settings, fundApiKey: e.target.value || null })}
+              className="input"
+            />
+          </div>
+        </div>
+      </Card>
+
       <div className="flex items-center gap-4">
         <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Settings'}</Button>
         {savedAt && <span className="text-sm text-emerald-600">Saved ✓</span>}

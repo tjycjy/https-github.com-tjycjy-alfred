@@ -192,6 +192,8 @@ export interface AppSettings {
   summaryApiKey: string | null;
   knowledgeEndpointUrl: string | null;
   knowledgeApiKey: string | null;
+  fundEndpointUrl: string | null;
+  fundApiKey: string | null;
   theme: 'light' | 'dark' | 'system';
 }
 

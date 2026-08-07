@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listFunds, addFund, deleteFund } from '../db/funds';
 import { extractFactsheetText, guessFactsheetFields } from '../lib/fundFactsheet';
+import { fetchFundQuote } from '../lib/fundEndpoint';
+import { getSettings } from '../db/settings';
 import { compoundInterestSeries } from '../lib/calculators/finance';
 import { formatCurrency } from '../lib/coverageGap';
 import { formatDate } from '../lib/age';
@@ -111,7 +113,35 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [fundEndpointUrl, setFundEndpointUrl] = useState<string | null>(null);
+  const [fundApiKey, setFundApiKey] = useState<string | null>(null);
+  const [fetchingLive, setFetchingLive] = useState(false);
+  const [liveError, setLiveError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    getSettings().then((s) => {
+      setFundEndpointUrl(s.fundEndpointUrl);
+      setFundApiKey(s.fundApiKey);
+    });
+  }, [open]);
+
+  const fetchLive = async () => {
+    if (!name.trim()) return;
+    setFetchingLive(true);
+    setLiveError('');
+    const quote = await fetchFundQuote(name, { url: fundEndpointUrl, apiKey: fundApiKey });
+    if (quote) {
+      if (quote.nav !== null) setNav(String(quote.nav));
+      if (quote.return1y !== null) setReturn1y(String(quote.return1y));
+      if (quote.return3y !== null) setReturn3y(String(quote.return3y));
+      if (quote.return5y !== null) setReturn5y(String(quote.return5y));
+    } else {
+      setLiveError('Your endpoint did not return usable data for this fund name.');
+    }
+    setFetchingLive(false);
+  };
 
   const applyGuess = (text: string) => {
     const guess = guessFactsheetFields(text);
@@ -219,6 +249,14 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Fund name</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. GreatLink Global Equity Fund" className="input" />
+          {fundEndpointUrl && (
+            <div className="mt-2">
+              <Button variant="secondary" onClick={fetchLive} disabled={!name.trim() || fetchingLive}>
+                {fetchingLive ? 'Fetching…' : '🔄 Fetch live from your endpoint'}
+              </Button>
+              {liveError && <p className="mt-1 text-xs text-amber-600">{liveError}</p>}
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
