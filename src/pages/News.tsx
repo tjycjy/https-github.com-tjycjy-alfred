@@ -5,26 +5,32 @@ import { formatDateTime } from '../lib/age';
 import { Button } from '../components/ui/Button';
 import type { NewsBriefing } from '../types';
 
-const LINK_DELIM = ' ||| ';
-
 function formatTimestamp(iso: string | null): string {
   if (!iso) return 'Never refreshed';
   return formatDateTime(iso);
 }
 
-function toHeadlines(text: string): FeedHeadline[] {
+function emptyHeadline(title: string): FeedHeadline {
+  return { title, link: '', image: '', description: '' };
+}
+
+function parseHeadlines(text: string): FeedHeadline[] {
+  if (!text.trim()) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed as FeedHeadline[];
+  } catch {
+    // legacy plain-text briefings predate structured storage — fall through
+  }
   return text
     .split('\n')
     .map((line) => line.replace(/^[-•*\d.)\s]+/, '').trim())
     .filter(Boolean)
-    .map((line) => {
-      const idx = line.indexOf(LINK_DELIM);
-      return idx === -1 ? { title: line, link: '' } : { title: line.slice(0, idx), link: line.slice(idx + LINK_DELIM.length) };
-    });
+    .map(emptyHeadline);
 }
 
 function serializeHeadlines(headlines: FeedHeadline[]): string {
-  return headlines.map((h) => (h.link ? `${h.title}${LINK_DELIM}${h.link}` : h.title)).join('\n');
+  return JSON.stringify(headlines);
 }
 
 function headlinesToPlainText(headlines: FeedHeadline[]): string {
@@ -46,9 +52,9 @@ export default function News() {
   const startEdit = () => {
     if (!briefing) return;
     setDraft({
-      globalNews: headlinesToPlainText(toHeadlines(briefing.globalNews)),
-      sgNews: headlinesToPlainText(toHeadlines(briefing.sgNews)),
-      otherNews: headlinesToPlainText(toHeadlines(briefing.otherNews)),
+      globalNews: headlinesToPlainText(parseHeadlines(briefing.globalNews)),
+      sgNews: headlinesToPlainText(parseHeadlines(briefing.sgNews)),
+      otherNews: headlinesToPlainText(parseHeadlines(briefing.otherNews)),
     });
     setEditing(true);
   };
@@ -57,9 +63,9 @@ export default function News() {
     setSaving(true);
     const updated: NewsBriefing = {
       id: 'briefing',
-      globalNews: draft.globalNews.trim(),
-      sgNews: draft.sgNews.trim(),
-      otherNews: draft.otherNews.trim(),
+      globalNews: serializeHeadlines(draft.globalNews.split('\n').map((l) => l.trim()).filter(Boolean).map(emptyHeadline)),
+      sgNews: serializeHeadlines(draft.sgNews.split('\n').map((l) => l.trim()).filter(Boolean).map(emptyHeadline)),
+      otherNews: serializeHeadlines(draft.otherNews.split('\n').map((l) => l.trim()).filter(Boolean).map(emptyHeadline)),
       lastRefreshedAt: new Date().toISOString(),
     };
     await saveBriefing(updated);
@@ -92,9 +98,9 @@ export default function News() {
 
   if (!briefing) return <p className="text-slate-400">Loading…</p>;
 
-  const globalHeadlines = toHeadlines(briefing.globalNews);
-  const sgHeadlines = toHeadlines(briefing.sgNews);
-  const otherHeadlines = toHeadlines(briefing.otherNews);
+  const globalHeadlines = parseHeadlines(briefing.globalNews);
+  const sgHeadlines = parseHeadlines(briefing.sgNews);
+  const otherHeadlines = parseHeadlines(briefing.otherNews);
   const totalHeadlines = globalHeadlines.length + sgHeadlines.length + otherHeadlines.length;
 
   return (
@@ -137,8 +143,9 @@ export default function News() {
         {editing ? (
           <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">
-              Auto-Refresh pulls real headlines from Yahoo Finance, The Business Times, and CNA — no typing needed.
-              Use this manual editor only if you want to override with your own picks — one headline per line.
+              Auto-Refresh pulls real headlines (with photos and summaries) from Yahoo Finance, The Business Times, and
+              CNA — no typing needed. Use this manual editor only if you want to override with your own picks — one
+              headline per line, plain text (no photos/summaries for manual entries).
             </p>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">🌍 Global Market News</label>
@@ -166,10 +173,10 @@ export default function News() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <NewsColumn accent="border-blue-500" icon="🌍" title="Global Markets" headlines={globalHeadlines} lead />
-            <NewsColumn accent="border-rose-500" icon="🇸🇬" title="Singapore Markets" headlines={sgHeadlines} />
-            <NewsColumn accent="border-amber-500" icon="📋" title="Regulatory & Industry" headlines={otherHeadlines} />
+          <div className="flex flex-col gap-8">
+            <NewsSection accent="border-blue-500" icon="🌍" title="Global Markets" headlines={globalHeadlines} />
+            <NewsSection accent="border-rose-500" icon="🇸🇬" title="Singapore Markets" headlines={sgHeadlines} />
+            <NewsSection accent="border-amber-500" icon="📋" title="Regulatory & Industry" headlines={otherHeadlines} />
           </div>
         )}
       </div>
@@ -177,44 +184,82 @@ export default function News() {
   );
 }
 
-function NewsColumn({
+function HeadlineLink({ headline, className, children }: { headline: FeedHeadline; className: string; children: React.ReactNode }) {
+  if (!headline.link) return <p className={className}>{children}</p>;
+  return (
+    <a href={headline.link} target="_blank" rel="noreferrer" className={`${className} hover:text-indigo-600 hover:underline`}>
+      {children}
+    </a>
+  );
+}
+
+function NewsSection({
   accent,
   icon,
   title,
   headlines,
-  lead,
 }: {
   accent: string;
   icon: string;
   title: string;
   headlines: FeedHeadline[];
-  lead?: boolean;
 }) {
+  if (headlines.length === 0) {
+    return (
+      <div className={`rounded-2xl border-t-4 ${accent} bg-white p-5 shadow-sm`}>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
+          <span>{icon}</span> {title}
+        </h2>
+        <p className="text-sm text-slate-400">No headlines added.</p>
+      </div>
+    );
+  }
+
+  const [lead, ...rest] = headlines;
+
   return (
     <div className={`rounded-2xl border-t-4 ${accent} bg-white p-5 shadow-sm`}>
       <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
         <span>{icon}</span> {title}
       </h2>
-      {headlines.length === 0 ? (
-        <p className="text-sm text-slate-400">No headlines added.</p>
-      ) : (
-        <div className="flex flex-col">
-          {headlines.map((headline, i) => {
-            const textClass = lead && i === 0 ? 'text-lg font-bold leading-snug text-slate-900' : 'font-semibold leading-snug text-slate-800';
-            return (
-              <div key={i} className={`py-3 ${i > 0 ? 'border-t border-slate-100' : ''}`}>
-                {headline.link ? (
-                  <a href={headline.link} target="_blank" rel="noreferrer" className={`${textClass} hover:text-indigo-600 hover:underline`}>
-                    {headline.title}
-                  </a>
-                ) : (
-                  <p className={textClass}>{headline.title}</p>
-                )}
-              </div>
-            );
-          })}
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Lead story */}
+        <div className="lg:col-span-1">
+          {lead.image && (
+            <HeadlineLink headline={lead} className="mb-3 block overflow-hidden rounded-xl bg-slate-100">
+              <img src={lead.image} alt="" className="h-44 w-full object-cover" />
+            </HeadlineLink>
+          )}
+          <HeadlineLink headline={lead} className="block text-lg font-bold leading-snug text-slate-900">
+            {lead.title}
+          </HeadlineLink>
+          {lead.description && <p className="mt-2 text-sm leading-snug text-slate-500">{lead.description}</p>}
         </div>
-      )}
+
+        {/* Secondary stories */}
+        {rest.length > 0 && (
+          <div className="flex flex-col divide-y divide-slate-100 lg:col-span-2">
+            {rest.map((h, i) => (
+              <div key={i} className="flex items-start gap-3 py-3">
+                {h.image ? (
+                  <HeadlineLink headline={h} className="block shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                    <img src={h.image} alt="" className="h-16 w-20 object-cover" />
+                  </HeadlineLink>
+                ) : (
+                  <div className="hidden h-16 w-20 shrink-0 rounded-lg bg-slate-50 sm:block" />
+                )}
+                <div className="min-w-0">
+                  <HeadlineLink headline={h} className="block font-semibold leading-snug text-slate-800">
+                    {h.title}
+                  </HeadlineLink>
+                  {h.description && <p className="mt-1 line-clamp-2 text-xs text-slate-400">{h.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

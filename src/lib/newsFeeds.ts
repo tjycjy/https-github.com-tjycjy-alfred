@@ -1,12 +1,18 @@
 export interface FeedHeadline {
   title: string;
   link: string;
+  image: string;
+  description: string;
 }
 
 const REGULATORY_KEYWORDS = [
   'insur', 'mas ', 'cpf', 'bank', 'financ', 'invest', 'fund', 'premium',
   'regulat', 'tax', 'retirement', 'wealth', 'policy', 'insolven', 'compliance',
 ];
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]*>/g, '').trim();
+}
 
 async function fetchRss(url: string, limit: number): Promise<FeedHeadline[]> {
   const res = await fetch(url, { mode: 'cors' });
@@ -15,10 +21,15 @@ async function fetchRss(url: string, limit: number): Promise<FeedHeadline[]> {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error(`${url} returned unparseable XML`);
   return Array.from(doc.querySelectorAll('item'))
-    .map((item) => ({
-      title: item.querySelector('title')?.textContent?.trim() ?? '',
-      link: item.querySelector('link')?.textContent?.trim() ?? '',
-    }))
+    .map((item) => {
+      const media = item.getElementsByTagNameNS('*', 'content')[0] ?? item.getElementsByTagNameNS('*', 'thumbnail')[0];
+      return {
+        title: item.querySelector('title')?.textContent?.trim() ?? '',
+        link: item.querySelector('link')?.textContent?.trim() ?? '',
+        image: media?.getAttribute('url') ?? '',
+        description: stripHtml(item.querySelector('description')?.textContent ?? ''),
+      };
+    })
     .filter((h) => h.title)
     .slice(0, limit);
 }

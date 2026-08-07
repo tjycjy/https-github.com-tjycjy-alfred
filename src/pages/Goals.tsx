@@ -3,7 +3,6 @@ import { listGoals, addGoal, updateGoal, deleteGoal, getAwardFyc, setAwardFyc } 
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ProgressBar } from '../components/ui/ProgressBar';
-import { SliderInput } from '../components/ui/SliderInput';
 import { formatCurrency } from '../lib/coverageGap';
 import type { PracticeGoal } from '../types';
 
@@ -107,7 +106,6 @@ export default function Goals() {
           {goals.map((goal) => {
             const ratio = goal.target > 0 ? Math.min(1, goal.current / goal.target) : 0;
             const status = ratio >= 1 ? 'met' : ratio >= 0.5 ? 'amber' : 'red';
-            const sliderMax = Math.max(goal.target * 1.2, goal.current, 10);
             return (
               <Card key={goal.id} className="p-5">
                 <div className="mb-2 flex items-center justify-between">
@@ -126,16 +124,6 @@ export default function Goals() {
                     className="input w-24"
                   />
                   <span className="text-sm text-slate-400">/ {goal.target}</span>
-                </div>
-                <div className="mt-2">
-                  <SliderInput
-                    label="Adjust progress"
-                    value={goal.current}
-                    min={0}
-                    max={sliderMax}
-                    step={sliderMax > 200 ? Math.ceil(sliderMax / 100) : 1}
-                    onChange={async (v) => { await updateGoal({ ...goal, current: v }); await load(); }}
-                  />
                 </div>
               </Card>
             );

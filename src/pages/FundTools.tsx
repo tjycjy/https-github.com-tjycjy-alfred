@@ -39,14 +39,14 @@ export default function FundTools() {
           <h1 className="text-2xl font-bold text-slate-800">Fund Tools</h1>
           <p className="text-slate-500">Track your clients' insurer-linked funds (GreatLink, AIA Portfolio, PRUlink, etc.) and simulate blended allocation growth.</p>
         </div>
-        <Button onClick={() => setShowImport(true)}>📄 Import Factsheet</Button>
+        <Button onClick={() => setShowImport(true)}>+ Add Fund</Button>
       </div>
 
       <Card className="p-6">
         <h2 className="mb-1 text-lg font-bold text-slate-800">Fund Database</h2>
         <p className="mb-4 text-sm text-slate-500">
-          No backend means no live daily NAV feed — factsheets update NAV/returns when you import a new PDF, or you can
-          key figures in by hand whenever you get a fresh factsheet from the insurer.
+          No backend means no live daily NAV feed — browsers block silently scraping Morningstar. Paste a fund's
+          Morningstar summary or a factsheet PDF to auto-fill NAV/returns, then refresh whenever you check a new price.
         </p>
         {loading ? (
           <p className="text-slate-400">Loading…</p>
@@ -110,18 +110,29 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
   const [fileName, setFileName] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const applyGuess = (text: string) => {
+    const guess = guessFactsheetFields(text);
+    if (guess.nav !== null) setNav(String(guess.nav));
+    if (guess.return1y !== null) setReturn1y(String(guess.return1y));
+    if (guess.return3y !== null) setReturn3y(String(guess.return3y));
+    if (guess.return5y !== null) setReturn5y(String(guess.return5y));
+    return guess;
+  };
+
+  const extractFromPaste = () => {
+    if (!pasteText.trim()) return;
+    applyGuess(pasteText);
+  };
 
   const handleFile = async (file: File) => {
     setExtracting(true);
     setFileName(file.name);
     try {
       const text = await extractFactsheetText(file);
-      const guess = guessFactsheetFields(text);
-      if (guess.nav !== null) setNav(String(guess.nav));
-      if (guess.return1y !== null) setReturn1y(String(guess.return1y));
-      if (guess.return3y !== null) setReturn3y(String(guess.return3y));
-      if (guess.return5y !== null) setReturn5y(String(guess.return5y));
+      applyGuess(text);
       if (!name) setName(file.name.replace(/\.pdf$/i, ''));
     } catch {
       // extraction failed — user can still fill fields manually
@@ -148,25 +159,54 @@ function ImportFactsheetModal({ open, onClose, onSaved }: { open: boolean; onClo
     setReturn3y('');
     setReturn5y('');
     setFileName(null);
+    setPasteText('');
     onSaved();
   };
 
   return (
     <Modal open={open} onClose={onClose} title="Add / Import Fund">
       <div className="flex flex-col gap-4">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
-        <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
-          {extracting ? 'Reading PDF…' : fileName ? `📄 ${fileName}` : '📄 Choose Factsheet PDF (optional)'}
-        </Button>
         <p className="text-xs text-slate-400">
-          Figures are auto-detected where possible — factsheet layouts vary, so please double-check before saving. Or
-          skip the PDF and key the fund in manually.
+          No backend means this app can't silently scrape Morningstar (browsers block that) — but you don't need to
+          type numbers by hand either. Open the fund on{' '}
+          <a href="https://global.morningstar.com/en-ea/stocks" target="_blank" rel="noreferrer" className="text-indigo-600 underline">
+            Morningstar
+          </a>
+          , select and copy its price/performance summary, then paste it below to auto-fill the fields.
+        </p>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">Paste from Morningstar (or any factsheet text)</label>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={4}
+            className="input resize-none"
+            placeholder="Paste the copied fund quote / factsheet text here…"
+          />
+          <Button variant="secondary" className="mt-2" onClick={extractFromPaste} disabled={!pasteText.trim()}>
+            🔍 Extract NAV & Returns
+          </Button>
+        </div>
+
+        <details className="text-sm text-slate-500">
+          <summary className="cursor-pointer font-medium text-slate-600">Or upload a factsheet PDF instead</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            />
+            <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
+              {extracting ? 'Reading PDF…' : fileName ? `📄 ${fileName}` : '📄 Choose Factsheet PDF'}
+            </Button>
+          </div>
+        </details>
+
+        <p className="text-xs text-slate-400">
+          Figures are auto-detected where possible — layouts vary, so please double-check before saving. You can also
+          just type the numbers in directly below.
         </p>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Insurer</label>
