@@ -1,3 +1,4 @@
+import type { FocusEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ClientModeToggle } from './ClientModeToggle';
 import { BottomTabBar, ClientModeBottomTabBar } from './BottomTabBar';
@@ -15,8 +16,19 @@ export function AppShell() {
   const isClientMode = mode === 'client';
   const isWhiteboard = location.pathname === '/whiteboard';
 
+  // Number inputs don't select their existing text on focus by default, so retyping over a
+  // "0" (or any other value) appends instead of replacing it — e.g. typing "1" over a "0"
+  // produces "01". Select-all on focus for every number input app-wide (this fires for
+  // portal-rendered modals too, since React bubbles focus events through the component tree).
+  const selectNumberInputOnFocus = (e: FocusEvent<HTMLDivElement>) => {
+    const target = e.target;
+    if (target instanceof HTMLInputElement && target.type === 'number') {
+      target.select();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50" onFocus={selectNumberInputOnFocus}>
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <button
