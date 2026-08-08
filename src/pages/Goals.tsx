@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { listGoals, addGoal, updateGoal, deleteGoal, getAwardFyc, setAwardFyc } from '../db/goals';
+import { listGoals, addGoal, updateGoal, deleteGoal } from '../db/goals';
+import { listCommissions } from '../db/commission';
+import { ytdFyc } from '../lib/commission';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ProgressBar } from '../components/ui/ProgressBar';
@@ -25,7 +27,7 @@ export default function Goals() {
 
   const load = async () => {
     setGoals(await listGoals());
-    setAwardFycState(await getAwardFyc());
+    setAwardFycState(ytdFyc(await listCommissions()));
   };
 
   useEffect(() => {
@@ -37,11 +39,6 @@ export default function Goals() {
     await addGoal({ label: form.label.trim(), target: Number(form.target), current: 0, period: form.period });
     setForm({ label: '', target: '', period: new Date().toISOString().slice(0, 7) });
     await load();
-  };
-
-  const saveAwardFyc = async (value: number) => {
-    setAwardFycState(value);
-    await setAwardFyc(value);
   };
 
   return (
@@ -68,17 +65,13 @@ export default function Goals() {
       <Card className="p-5">
         <h2 className="mb-1 font-bold text-slate-800">Award Progress ({YEAR})</h2>
         <p className="mb-4 text-sm text-slate-500">
-          MDRT, COT, TOT and IDA all run off the same year-to-date FYC — enter it once and every tier below fills in
-          together. FYC = first year commission.
+          MDRT, COT, TOT and IDA all run off the same year-to-date FYC, calculated automatically from your{' '}
+          <span className="font-semibold text-slate-600">Commission Log</span> — no need to enter it twice. FYC =
+          first year commission (year-1 commission earned on premium logged this year).
         </p>
         <div className="mb-5 max-w-xs">
           <label className="mb-1 block text-xs font-semibold text-slate-500">Current FYC (S$)</label>
-          <input
-            type="number"
-            value={awardFyc}
-            onChange={(e) => saveAwardFyc(Number(e.target.value))}
-            className="input"
-          />
+          <p className="text-2xl font-bold text-slate-800">{formatCurrency(awardFyc)}</p>
         </div>
         <div className="flex flex-col gap-3">
           {AWARD_TIERS.map((t) => {

@@ -1,30 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listCommissions, addCommission, updateCommission, deleteCommission, listPipeline, addPipelineEntry, updatePipelineEntry, deletePipelineEntry } from '../db/commission';
-import { extractStatementLines, guessCommissionCandidates } from '../lib/commissionStatement';
+import { year1CommissionAmount, year2to5CommissionAmount, year6PlusCommissionAmount, ytdFyc } from '../lib/commission';
 import { formatDate } from '../lib/age';
 import { formatCurrency } from '../lib/coverageGap';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { DateInput } from '../components/ui/DateInput';
 import type { CommissionEntry, PipelineEntry, PipelineStatus } from '../types';
 
-interface StagedCandidate {
-  id: string;
-  date: string;
-  clientName: string;
-  product: string;
-  amount: string;
-}
+const emptyForm = {
+  date: new Date().toISOString().slice(0, 10),
+  clientName: '',
+  product: '',
+  premiumAmount: '',
+  year1Pct: '',
+  year2to5Pct: '',
+  year6PlusPct: '',
+};
 
 export default function Commission() {
   const [entries, setEntries] = useState<CommissionEntry[]>([]);
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), clientName: '', product: '', amount: '' });
+  const [form, setForm] = useState(emptyForm);
   const [pipeForm, setPipeForm] = useState({ clientName: '', product: '', amount: '', closeDate: '', status: 'Proposed' as PipelineStatus });
-  const [staged, setStaged] = useState<StagedCandidate[]>([]);
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState('');
+  const [statementUrl, setStatementUrl] = useState<string | null>(null);
+  const [statementName, setStatementName] = useState('');
 
   const load = async () => {
     setEntries(await listCommissions());
@@ -35,81 +37,40 @@ export default function Commission() {
     load();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (statementUrl) URL.revokeObjectURL(statementUrl);
+    };
+  }, [statementUrl]);
+
+  const openStatement = (file: File) => {
+    setStatementUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setStatementName(file.name);
+  };
+
+  const closeStatement = () => {
+    if (statementUrl) URL.revokeObjectURL(statementUrl);
+    setStatementUrl(null);
+    setStatementName('');
+  };
+
   const addEntry = async () => {
-    if (!form.clientName.trim() || !form.amount) return;
+    if (!form.clientName.trim() || !form.premiumAmount) return;
     await addCommission({
       date: new Date(form.date).toISOString(),
       clientId: null,
       clientName: form.clientName.trim(),
       product: form.product.trim(),
-      amount: Number(form.amount),
+      premiumAmount: Number(form.premiumAmount),
+      year1Pct: Number(form.year1Pct) || 0,
+      year2to5Pct: Number(form.year2to5Pct) || 0,
+      year6PlusPct: Number(form.year6PlusPct) || 0,
     });
-    setForm({ date: new Date().toISOString().slice(0, 10), clientName: '', product: '', amount: '' });
+    setForm(emptyForm);
     await load();
-  };
-
-  const handleStatementUpload = async (file: File) => {
-    setImporting(true);
-    setImportError('');
-    try {
-      const lines = await extractStatementLines(file);
-      const candidates = guessCommissionCandidates(lines);
-      if (candidates.length === 0) {
-        setImportError(
-          'No commission rows detected. This importer expects an itemized statement of commission you actually received (e.g. a monthly payout advice) — not a commission rate schedule/table. You can still key in entries manually below.',
-        );
-      }
-      setStaged(
-        candidates.map((c) => ({
-          id: crypto.randomUUID(),
-          date: new Date().toISOString().slice(0, 10),
-          clientName: c.clientName,
-          product: c.product,
-          amount: String(c.amount),
-        })),
-      );
-    } catch {
-      setImportError('Could not read that PDF. Make sure it is a text-based (not scanned) commission statement.');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const updateStaged = (id: string, patch: Partial<StagedCandidate>) => {
-    setStaged((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  };
-
-  const commitStaged = async (id: string) => {
-    const row = staged.find((s) => s.id === id);
-    if (!row || !row.amount) return;
-    await addCommission({
-      date: new Date(row.date).toISOString(),
-      clientId: null,
-      clientName: row.clientName.trim() || 'Unknown',
-      product: row.product.trim(),
-      amount: Number(row.amount),
-    });
-    setStaged((prev) => prev.filter((s) => s.id !== id));
-    await load();
-  };
-
-  const commitAllStaged = async () => {
-    for (const row of staged) {
-      if (!row.amount) continue;
-      await addCommission({
-        date: new Date(row.date).toISOString(),
-        clientId: null,
-        clientName: row.clientName.trim() || 'Unknown',
-        product: row.product.trim(),
-        amount: Number(row.amount),
-      });
-    }
-    setStaged([]);
-    await load();
-  };
-
-  const discardStaged = (id: string) => {
-    setStaged((prev) => prev.filter((s) => s.id !== id));
   };
 
   const addPipeline = async () => {
@@ -130,18 +91,16 @@ export default function Commission() {
     const map = new Map<string, number>();
     for (const e of entries) {
       const key = new Date(e.date).toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
-      map.set(key, (map.get(key) ?? 0) + e.amount);
+      map.set(key, (map.get(key) ?? 0) + year1CommissionAmount(e));
     }
     return Array.from(map.entries())
       .slice(-12)
       .map(([month, total]) => ({ month, total }));
   }, [entries]);
 
-  const totalThisYear = entries
-    .filter((e) => new Date(e.date).getFullYear() === new Date().getFullYear())
-    .reduce((s, e) => s + e.amount, 0);
-
+  const totalThisYear = ytdFyc(entries);
   const totalPipeline = pipeline.filter((p) => p.status !== 'Closed').reduce((s, p) => s + p.expectedAmount, 0);
+  const formPreview = (Number(form.premiumAmount) || 0) * (Number(form.year1Pct) || 0) / 100;
 
   const statusTone: Record<PipelineStatus, 'slate' | 'amber' | 'green'> = {
     Proposed: 'slate',
@@ -153,7 +112,9 @@ export default function Commission() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Commission</h1>
-        <p className="text-slate-500">YTD received: {formatCurrency(totalThisYear)} · Pipeline: {formatCurrency(totalPipeline)}</p>
+        <p className="text-slate-500">
+          YTD received (FYC): {formatCurrency(totalThisYear)} · Pipeline: {formatCurrency(totalPipeline)}
+        </p>
       </div>
 
       <Card className="p-6">
@@ -176,111 +137,109 @@ export default function Commission() {
       </Card>
 
       <Card className="p-6">
-        <h2 className="mb-1 text-lg font-bold text-slate-800">Import Commission Statement</h2>
+        <h2 className="mb-1 text-lg font-bold text-slate-800">Commission Statement</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Upload a commission PDF — dollar-amount rows are detected automatically. Review, edit client/product names,
-          then add them to the log below.
+          Open your statement PDF to view exactly as issued while you key in each line below — insurer statement
+          layouts vary too much to auto-read reliably.
         </p>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100">
-          {importing ? 'Reading PDF…' : 'Choose PDF'}
-          <input
-            type="file"
-            accept="application/pdf"
-            className="hidden"
-            disabled={importing}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleStatementUpload(file);
-              e.target.value = '';
-            }}
-          />
-        </label>
-        {importError && <p className="mt-3 text-sm text-amber-600">{importError}</p>}
-
-        {staged.length > 0 && (
-          <div className="mt-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-600">{staged.length} candidate row(s) detected</p>
-              <div className="flex gap-2">
-                <Button onClick={commitAllStaged}>Add All</Button>
-                <button onClick={() => setStaged([])} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
-                  Discard All
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              {staged.map((row) => (
-                <div key={row.id} className="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[140px_1fr_1fr_120px_auto_auto]">
-                  <input
-                    type="date"
-                    value={row.date}
-                    onChange={(e) => updateStaged(row.id, { date: e.target.value })}
-                    className="input"
-                  />
-                  <input
-                    value={row.clientName}
-                    onChange={(e) => updateStaged(row.id, { clientName: e.target.value })}
-                    placeholder="Client"
-                    className="input"
-                  />
-                  <input
-                    value={row.product}
-                    onChange={(e) => updateStaged(row.id, { product: e.target.value })}
-                    placeholder="Product"
-                    className="input"
-                  />
-                  <input
-                    type="number"
-                    value={row.amount}
-                    onChange={(e) => updateStaged(row.id, { amount: e.target.value })}
-                    className="input"
-                  />
-                  <Button onClick={() => commitStaged(row.id)}>Add</Button>
-                  <button onClick={() => discardStaged(row.id)} className="text-slate-300 hover:text-rose-500">✕</button>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100">
+            {statementName ? `📄 ${statementName}` : 'Choose PDF'}
+            <input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) openStatement(file);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          {statementUrl && (
+            <button onClick={closeStatement} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
+              Close
+            </button>
+          )}
+        </div>
+        {statementUrl && (
+          <iframe src={statementUrl} title="Commission statement" className="mt-4 h-[600px] w-full rounded-xl border border-slate-200" />
         )}
       </Card>
 
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-bold text-slate-800">Commission Log</h2>
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr_1fr_120px_100px]">
-          <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" />
-          <input placeholder="Client" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
-          <input placeholder="Product" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} className="input" />
-          <input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="input" />
-          <Button onClick={addEntry}>Add</Button>
+
+        <div className="mb-5 flex flex-col gap-2 rounded-xl border border-dashed border-slate-200 p-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[150px_1fr_1fr]">
+            <DateInput value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
+            <input placeholder="Client" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
+            <input placeholder="Product" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+            <input type="number" placeholder="Premium ($) e.g. 1000" value={form.premiumAmount} onChange={(e) => setForm({ ...form, premiumAmount: e.target.value })} className="input" />
+            <input type="number" placeholder="Yr 1 % e.g. 30" value={form.year1Pct} onChange={(e) => setForm({ ...form, year1Pct: e.target.value })} className="input" />
+            <input type="number" placeholder="Yr 2–5 %" value={form.year2to5Pct} onChange={(e) => setForm({ ...form, year2to5Pct: e.target.value })} className="input" />
+            <input type="number" placeholder="Yr 6+ %" value={form.year6PlusPct} onChange={(e) => setForm({ ...form, year6PlusPct: e.target.value })} className="input" />
+            <Button onClick={addEntry}>Add</Button>
+          </div>
+          {formPreview > 0 && <p className="text-xs font-semibold text-emerald-600">Year 1 commission: {formatCurrency(formPreview)}</p>}
         </div>
-        <div className="flex flex-col divide-y divide-slate-100">
-          {entries.map((e) => {
-            const patch = async (fields: Partial<CommissionEntry>) => {
-              const updated = { ...e, ...fields };
-              setEntries((prev) => prev.map((x) => (x.id === e.id ? updated : x)));
-              await updateCommission(updated);
-            };
-            return (
-              <div key={e.id} className="grid grid-cols-1 items-center gap-2 py-3 sm:grid-cols-[130px_1fr_1fr_110px_auto]">
-                <input
-                  type="date"
-                  value={e.date.slice(0, 10)}
-                  onChange={(ev) => patch({ date: new Date(ev.target.value).toISOString() })}
-                  className="input"
-                />
-                <input value={e.clientName} onChange={(ev) => patch({ clientName: ev.target.value })} className="input" />
-                <input value={e.product} onChange={(ev) => patch({ product: ev.target.value })} className="input" />
-                <input
-                  type="number"
-                  value={e.amount}
-                  onChange={(ev) => patch({ amount: Number(ev.target.value) })}
-                  className="input font-bold text-emerald-600"
-                />
-                <button onClick={async () => { await deleteCommission(e.id); await load(); }} className="text-slate-300 hover:text-rose-500">✕</button>
-              </div>
-            );
-          })}
-        </div>
+
+        {entries.length === 0 ? (
+          <p className="text-slate-400">No commission logged yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {entries.map((e) => {
+              const patch = async (fields: Partial<CommissionEntry>) => {
+                const updated = { ...e, ...fields };
+                setEntries((prev) => prev.map((x) => (x.id === e.id ? updated : x)));
+                await updateCommission(updated);
+              };
+              return (
+                <div key={e.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 p-4">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[150px_1fr_1fr]">
+                    <DateInput value={e.date.slice(0, 10)} onChange={(v) => patch({ date: new Date(v).toISOString() })} />
+                    <input value={e.clientName} onChange={(ev) => patch({ clientName: ev.target.value })} placeholder="Client" className="input" />
+                    <input value={e.product} onChange={(ev) => patch({ product: ev.target.value })} placeholder="Product" className="input" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Premium ($)</label>
+                      <input type="number" value={e.premiumAmount} onChange={(ev) => patch({ premiumAmount: Number(ev.target.value) })} className="input" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Yr 1 %</label>
+                      <input type="number" value={e.year1Pct} onChange={(ev) => patch({ year1Pct: Number(ev.target.value) })} className="input" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Yr 2–5 %</label>
+                      <input type="number" value={e.year2to5Pct} onChange={(ev) => patch({ year2to5Pct: Number(ev.target.value) })} className="input" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-500">Yr 6+ %</label>
+                      <input type="number" value={e.year6PlusPct} onChange={(ev) => patch({ year6PlusPct: Number(ev.target.value) })} className="input" />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                    <span>
+                      Yr 1: <strong className="text-emerald-600">{formatCurrency(year1CommissionAmount(e))}</strong>
+                    </span>
+                    <span>
+                      Yr 2–5 (per yr): <strong className="text-slate-700">{formatCurrency(year2to5CommissionAmount(e))}</strong>
+                    </span>
+                    <span>
+                      Yr 6+ (per yr): <strong className="text-slate-700">{formatCurrency(year6PlusCommissionAmount(e))}</strong>
+                    </span>
+                    <button onClick={async () => { await deleteCommission(e.id); await load(); }} className="text-slate-300 hover:text-rose-500">
+                      ✕ Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       <Card className="p-6">
@@ -289,7 +248,7 @@ export default function Commission() {
           <input placeholder="Client" value={pipeForm.clientName} onChange={(e) => setPipeForm({ ...pipeForm, clientName: e.target.value })} className="input" />
           <input placeholder="Product" value={pipeForm.product} onChange={(e) => setPipeForm({ ...pipeForm, product: e.target.value })} className="input" />
           <input type="number" placeholder="Amount" value={pipeForm.amount} onChange={(e) => setPipeForm({ ...pipeForm, amount: e.target.value })} className="input" />
-          <input type="date" value={pipeForm.closeDate} onChange={(e) => setPipeForm({ ...pipeForm, closeDate: e.target.value })} className="input" />
+          <DateInput value={pipeForm.closeDate} onChange={(v) => setPipeForm({ ...pipeForm, closeDate: v })} />
           <select value={pipeForm.status} onChange={(e) => setPipeForm({ ...pipeForm, status: e.target.value as PipelineStatus })} className="input">
             <option>Proposed</option>
             <option>Pending</option>

@@ -151,7 +151,10 @@ export interface CommissionEntry {
   clientId: UUID | null;
   clientName: string;
   product: string;
-  amount: number;
+  premiumAmount: number;
+  year1Pct: number;
+  year2to5Pct: number;
+  year6PlusPct: number;
 }
 
 export type PipelineStatus = 'Proposed' | 'Pending' | 'Closed';

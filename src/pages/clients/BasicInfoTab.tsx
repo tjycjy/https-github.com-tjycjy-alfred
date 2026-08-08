@@ -6,6 +6,7 @@ import { calcCpfContribution, CPF_RATES_NOTE, DEFAULT_OW_CEILING } from '../../l
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { DateInput } from '../../components/ui/DateInput';
 import { useClientTab } from './ClientTabContext';
 import type { EmploymentType, FamilyMember } from '../../types';
 
@@ -72,12 +73,7 @@ export default function BasicInfoTab() {
             />
           </Field>
           <Field label={`Date of birth${form.dob ? ` (age ${calcAge(form.dob)})` : ''}`}>
-            <input
-              type="date"
-              value={form.dob}
-              onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
-              className="input"
-            />
+            <DateInput value={form.dob} onChange={(v) => setForm((f) => ({ ...f, dob: v }))} />
           </Field>
           <Field label="Occupation">
             <input
@@ -160,11 +156,9 @@ export default function BasicInfoTab() {
                   <option value="Child">Child</option>
                   <option value="Other">Other</option>
                 </select>
-                <input
-                  type="date"
+                <DateInput
                   value={member.dob ?? ''}
-                  onChange={(e) => updateFamilyMember(member.id, { dob: e.target.value || null })}
-                  className="input"
+                  onChange={(v) => updateFamilyMember(member.id, { dob: v || null })}
                 />
                 <button
                   onClick={() => removeFamilyMember(member.id)}

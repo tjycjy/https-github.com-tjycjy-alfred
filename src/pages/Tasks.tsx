@@ -6,6 +6,7 @@ import { formatDate, daysUntil } from '../lib/age';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { DateInput } from '../components/ui/DateInput';
 import type { Task, Client } from '../types';
 
 export default function Tasks() {
@@ -80,7 +81,7 @@ export default function Tasks() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} className="input lg:w-52" />
+          <DateInput value={newDue} onChange={setNewDue} className="lg:w-52" />
           <Button onClick={addTask} disabled={!newDesc.trim()} className="lg:w-32">Add</Button>
         </div>
       </Card>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { DateInput } from '../ui/DateInput';
 import { createMeeting } from '../../db/meetings';
 import { createTask } from '../../db/tasks';
 import { saveRecording } from '../../db/recordings';
@@ -237,7 +238,7 @@ export function RecordMeetingModal({
         <div className="flex flex-col gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+            <DateInput value={date} onChange={setDate} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Journal entry</label>

@@ -4,6 +4,7 @@ import { listClients } from '../db/clients';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { DateInput } from '../components/ui/DateInput';
 import { EVENT_TYPES } from '../types';
 import type { CalendarEvent, Client } from '../types';
 
@@ -271,7 +272,7 @@ export function EventModal({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+          <DateInput value={date} onChange={setDate} />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Link to client (optional)</label>

@@ -15,6 +15,7 @@ import { computeHoldingLiveValue, type HoldingLiveValue } from '../../lib/invest
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { SliderInput } from '../../components/ui/SliderInput';
+import { DateInput } from '../../components/ui/DateInput';
 import { useClientTab } from './ClientTabContext';
 import {
   EXPENSE_CATEGORIES,
@@ -696,11 +697,9 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                           <label className="mb-1 block text-xs font-medium text-slate-500">
                             {h.premiumType === 'Single' ? 'Purchase date' : 'First payment date'}
                           </label>
-                          <input
-                            type="date"
+                          <DateInput
                             value={h.purchaseDate ?? ''}
-                            onChange={(e) => updateHolding(h.id, { purchaseDate: e.target.value })}
-                            className="input"
+                            onChange={(v) => updateHolding(h.id, { purchaseDate: v })}
                           />
                         </div>
                         <div>

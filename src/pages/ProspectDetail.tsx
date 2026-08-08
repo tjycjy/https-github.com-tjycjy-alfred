@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { DateInput } from '../components/ui/DateInput';
 import { PROSPECT_STATUSES } from '../types';
 import type { Prospect, ProspectStatus, Client } from '../types';
 
@@ -154,11 +155,9 @@ export default function ProspectDetail() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Next approach date</label>
-            <input
-              type="date"
+            <DateInput
               value={prospect.nextApproachDate ?? ''}
-              onChange={(e) => set('nextApproachDate', e.target.value || null)}
-              className="input"
+              onChange={(v) => set('nextApproachDate', v || null)}
               disabled={isConverted}
             />
           </div>

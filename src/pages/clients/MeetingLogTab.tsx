@@ -6,6 +6,7 @@ import { formatDate } from '../../lib/age';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
+import { DateInput } from '../../components/ui/DateInput';
 import { RecordMeetingModal } from '../../components/meeting/RecordMeetingModal';
 import { useClientTab } from './ClientTabContext';
 import type { Client, MeetingLogEntry } from '../../types';
@@ -130,7 +131,7 @@ function NewMeetingModal({
       <div className="flex flex-col gap-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+          <DateInput value={date} onChange={setDate} />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Journal entry</label>
@@ -158,15 +159,7 @@ function NewMeetingModal({
               <input type="checkbox" checked={addAsTask} onChange={(e) => setAddAsTask(e.target.checked)} />
               Add "Next step" to Task list
             </label>
-            {addAsTask && (
-              <input
-                type="date"
-                value={taskDueDate}
-                onChange={(e) => setTaskDueDate(e.target.value)}
-                className="input"
-                placeholder="Due date (optional)"
-              />
-            )}
+            {addAsTask && <DateInput value={taskDueDate} onChange={setTaskDueDate} />}
           </div>
         )}
         <Button onClick={submit} disabled={!journal.trim() || saving}>
