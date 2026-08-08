@@ -55,7 +55,9 @@ export default function Commission() {
       const lines = await extractStatementLines(file);
       const candidates = guessCommissionCandidates(lines);
       if (candidates.length === 0) {
-        setImportError('No dollar-amount rows detected in this PDF. You can still key in entries manually below.');
+        setImportError(
+          'No commission rows detected. This importer expects an itemized statement of commission you actually received (e.g. a monthly payout advice) — not a commission rate schedule/table. You can still key in entries manually below.',
+        );
       }
       setStaged(
         candidates.map((c) => ({
