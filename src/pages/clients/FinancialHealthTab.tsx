@@ -609,7 +609,7 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                     <input
                       value={h.fundName}
                       onChange={(e) => updateHolding(h.id, { fundName: e.target.value })}
-                      placeholder="Fund / holding name (e.g. GREAT Wealth Advantage)"
+                      placeholder="Fund / holding name (e.g. client's ILP policy)"
                       className="input"
                     />
                     <button onClick={() => removeHolding(h.id)} className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-100">
@@ -732,7 +732,11 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                       )}
 
                       <details className="mt-3">
-                        <summary className="cursor-pointer text-xs font-semibold text-indigo-600">GREAT Wealth Advantage bonuses (optional)</summary>
+                        <summary className="cursor-pointer text-xs font-semibold text-indigo-600">Policy bonuses (optional)</summary>
+                        <p className="mt-2 text-xs text-slate-400">
+                          For ILPs that credit welcome/loyalty bonuses as extra units — check the client's Benefit Illustration for
+                          the exact percentages and crediting schedule.
+                        </p>
                         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-slate-500">Welcome Bonus %</label>
@@ -753,7 +757,7 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-500">Loyalty Bonus % p.a.</label>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Loyalty Bonus % p.a. (of account value)</label>
                             <input
                               type="number"
                               step="0.01"
@@ -763,7 +767,7 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-500">Starts after (years)</label>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Starts from policy year</label>
                             <input
                               type="number"
                               value={h.loyaltyBonusStartYear}
@@ -783,9 +787,12 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                             )}
                             {live.loyaltyBonusValue > 0.01 && (
                               <div className="rounded-xl bg-amber-50 p-3">
-                                <p className="text-xs font-medium uppercase tracking-wide text-amber-500">Loyalty Bonus (illustrative)</p>
+                                <p className="text-xs font-medium uppercase tracking-wide text-amber-500">Loyalty Bonus value today</p>
                                 <p className="text-lg font-bold text-amber-700">{formatCurrency(live.loyaltyBonusValue)}</p>
-                                <p className="text-xs text-amber-500">estimate only — confirm against the Benefit Illustration</p>
+                                <p className="text-xs text-amber-500">
+                                  simulated from account value at each policy anniversary using real price history — assumes no
+                                  premium holidays or withdrawals
+                                </p>
                               </div>
                             )}
                           </div>

@@ -62,7 +62,8 @@ function addYears(date: Date, years: number): Date {
   return d;
 }
 
-function navOnOrBefore(history: FundHistoryPoint[], target: Date): number | null {
+export function navOnOrBefore(historyRaw: FundHistoryPoint[], target: Date): number | null {
+  const history = sortHistory(historyRaw);
   let result: number | null = null;
   for (const p of history) {
     if (new Date(p.date) <= target) result = p.nav;
