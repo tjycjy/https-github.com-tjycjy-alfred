@@ -145,6 +145,13 @@ export interface Task {
   sourceMeetingId: UUID | null;
 }
 
+export interface CommissionRateTier {
+  id: UUID;
+  fromYear: number;
+  toYear: number | null; // null = continues indefinitely at this rate
+  pct: number;
+}
+
 export interface CommissionEntry {
   id: UUID;
   date: string;
@@ -152,9 +159,7 @@ export interface CommissionEntry {
   clientName: string;
   product: string;
   premiumAmount: number;
-  year1Pct: number;
-  year2to5Pct: number;
-  year6PlusPct: number;
+  rateTiers: CommissionRateTier[];
 }
 
 export type PipelineStatus = 'Proposed' | 'Pending' | 'Closed';
