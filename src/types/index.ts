@@ -217,14 +217,21 @@ export interface NewsBriefing {
   lastRefreshedAt: string | null;
 }
 
+export interface FundHistoryPoint {
+  date: string; // yyyy-mm-dd
+  nav: number;
+}
+
 export interface FundEntry {
   id: UUID;
   name: string;
   insurer: string;
+  assetClass: string;
   nav: number | null;
   return1y: number | null;
   return3y: number | null;
   return5y: number | null;
+  history: FundHistoryPoint[];
   sourceFileName: string | null;
   updatedAt: string;
 }
