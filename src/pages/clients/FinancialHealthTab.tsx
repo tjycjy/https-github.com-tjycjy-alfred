@@ -20,6 +20,7 @@ import {
   EXPENSE_CATEGORIES,
   ASSET_CATEGORIES,
   LIFE_EVENT_TYPES,
+  PREMIUM_FREQUENCIES,
   type FinancialProfile,
   type IncomeItem,
   type ExpenseItem,
@@ -524,8 +525,10 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
           expectedReturnPct: 5,
           purchaseDate: null,
           allocations: [],
-          welcomeBonusPct: 0,
-          specialWelcomeBonusPct: 0,
+          premiumType: 'Single',
+          premiumFrequency: 'Yearly',
+          premiumTermYears: null,
+          welcomeBonusTiers: [],
           loyaltyBonusPct: 0,
           loyaltyBonusStartYear: 10,
         },
@@ -552,6 +555,15 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
     updateHolding(h.id, { allocations: h.allocations.map((a) => ({ ...a, percentage: Math.round((a.percentage / total) * 100) })) });
   };
 
+  const addBonusTier = (h: InvestmentHolding) =>
+    updateHolding(h.id, {
+      welcomeBonusTiers: [...h.welcomeBonusTiers, { id: newId(), policyYear: h.welcomeBonusTiers.length + 1, percentage: 0 }],
+    });
+  const updateBonusTier = (h: InvestmentHolding, tierId: string, patch: Partial<{ policyYear: number; percentage: number }>) =>
+    updateHolding(h.id, { welcomeBonusTiers: h.welcomeBonusTiers.map((t) => (t.id === tierId ? { ...t, ...patch } : t)) });
+  const removeBonusTier = (h: InvestmentHolding, tierId: string) =>
+    updateHolding(h.id, { welcomeBonusTiers: h.welcomeBonusTiers.filter((t) => t.id !== tierId) });
+
   const liveValues = useMemo(() => {
     const map = new Map<string, HoldingLiveValue>();
     for (const h of profile.investments) {
@@ -576,7 +588,7 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveValues]);
 
-  const totalInvested = profile.investments.reduce((s, h) => s + h.investedAmount, 0);
+  const totalInvested = profile.investments.reduce((s, h) => s + (liveValues.get(h.id)?.totalInvested ?? h.investedAmount), 0);
   const totalCurrent = profile.investments.reduce((s, h) => s + (liveValues.get(h.id)?.currentValue ?? h.currentValue), 0);
   const totalGainPct = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0;
 
@@ -662,9 +674,23 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
 
                   {h.allocations.length > 0 ? (
                     <>
+                      <div className="mt-3 flex gap-2">
+                        {(['Single', 'Regular'] as const).map((pt) => (
+                          <button
+                            key={pt}
+                            onClick={() => updateHolding(h.id, { premiumType: pt })}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${h.premiumType === pt ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                          >
+                            {pt === 'Single' ? 'Single premium' : 'Regular premium'}
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-500">Purchase date</label>
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            {h.premiumType === 'Single' ? 'Purchase date' : 'First payment date'}
+                          </label>
                           <input
                             type="date"
                             value={h.purchaseDate ?? ''}
@@ -673,7 +699,9 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-500">Amount invested</label>
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            {h.premiumType === 'Single' ? 'Amount invested' : 'Premium per payment'}
+                          </label>
                           <input
                             type="number"
                             value={h.investedAmount}
@@ -681,6 +709,44 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                             className="input"
                           />
                         </div>
+                        {h.premiumType === 'Regular' && (
+                          <>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-500">Frequency</label>
+                              <select
+                                value={h.premiumFrequency}
+                                onChange={(e) => updateHolding(h.id, { premiumFrequency: e.target.value as InvestmentHolding['premiumFrequency'] })}
+                                className="input"
+                              >
+                                {PREMIUM_FREQUENCIES.map((f) => (
+                                  <option key={f} value={f}>
+                                    {f}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-500">Term (years)</label>
+                              <input
+                                type="number"
+                                value={h.premiumTermYears ?? ''}
+                                placeholder="Ongoing"
+                                onChange={(e) => updateHolding(h.id, { premiumTermYears: e.target.value === '' ? null : Number(e.target.value) })}
+                                className="input"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">Leave blank if ongoing / until stopped</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {h.premiumType === 'Regular' && live && (
+                        <p className="mt-2 text-xs text-slate-400">
+                          {live.paymentCount} payment{live.paymentCount === 1 ? '' : 's'} made so far · {formatCurrency(live.totalInvested)} paid in
+                          total
+                        </p>
+                      )}
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                         {live ? (
                           <>
                             <div className="rounded-xl bg-slate-50 p-3">
@@ -695,13 +761,24 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                                 {live.gainPct.toFixed(1)}%
                               </p>
                               <p className="text-xs text-slate-400">
-                                {formatCurrency(live.currentValue - h.investedAmount)} since {h.purchaseDate ? formatDate(h.purchaseDate) : '—'}
+                                {formatCurrency(live.currentValue - live.totalInvested)} since {h.purchaseDate ? formatDate(h.purchaseDate) : '—'}
                               </p>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-500">Projected growth %/yr</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={h.expectedReturnPct}
+                                onChange={(e) => updateHolding(h.id, { expectedReturnPct: Number(e.target.value) })}
+                                className="input"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">used for the projection chart below, not the figures above</p>
                             </div>
                           </>
                         ) : (
-                          <div className="col-span-2 flex items-center rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-                            Select a fund, purchase date and amount to compute live value.
+                          <div className="flex items-center rounded-xl bg-amber-50 p-3 text-xs text-amber-700 sm:col-span-3">
+                            Select a fund, date and amount to compute live value.
                           </div>
                         )}
                       </div>
@@ -737,25 +814,42 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                           For ILPs that credit welcome/loyalty bonuses as extra units — check the client's Benefit Illustration for
                           the exact percentages and crediting schedule.
                         </p>
-                        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-500">Welcome Bonus %</label>
-                            <input
-                              type="number"
-                              value={h.welcomeBonusPct}
-                              onChange={(e) => updateHolding(h.id, { welcomeBonusPct: Number(e.target.value) })}
-                              className="input"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-500">Special Welcome Bonus %</label>
-                            <input
-                              type="number"
-                              value={h.specialWelcomeBonusPct}
-                              onChange={(e) => updateHolding(h.id, { specialWelcomeBonusPct: Number(e.target.value) })}
-                              className="input"
-                            />
-                          </div>
+
+                        <div className="mt-3">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Welcome bonus schedule (% of each premium payment, by policy year)
+                          </label>
+                          {h.welcomeBonusTiers.map((t) => (
+                            <div key={t.id} className="mb-2 grid grid-cols-[100px_1fr_36px] gap-2">
+                              <input
+                                type="number"
+                                min={1}
+                                value={t.policyYear}
+                                onChange={(e) => updateBonusTier(h, t.id, { policyYear: Number(e.target.value) })}
+                                className="input"
+                                placeholder="Year"
+                              />
+                              <input
+                                type="number"
+                                value={t.percentage}
+                                onChange={(e) => updateBonusTier(h, t.id, { percentage: Number(e.target.value) })}
+                                className="input"
+                                placeholder="%"
+                              />
+                              <button onClick={() => removeBonusTier(h, t.id)} className="rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100">
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <Button variant="secondary" onClick={() => addBonusTier(h)} className="px-3 py-2 text-xs">
+                            + Add bonus year
+                          </Button>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            e.g. 20% in policy year 1 only, or 10% split across years 1–3 — add one row per year.
+                          </p>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-3">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-slate-500">Loyalty Bonus % p.a. (of account value)</label>
                             <input

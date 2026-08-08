@@ -290,6 +290,18 @@ export interface FundAllocation {
   percentage: number;
 }
 
+export const PREMIUM_TYPES = ['Single', 'Regular'] as const;
+export type PremiumType = (typeof PREMIUM_TYPES)[number];
+
+export const PREMIUM_FREQUENCIES = ['Yearly', 'Half-Yearly', 'Quarterly', 'Monthly'] as const;
+export type PremiumFrequency = (typeof PREMIUM_FREQUENCIES)[number];
+
+export interface WelcomeBonusTier {
+  id: UUID;
+  policyYear: number;
+  percentage: number;
+}
+
 export interface InvestmentHolding {
   id: UUID;
   fundName: string;
@@ -298,8 +310,10 @@ export interface InvestmentHolding {
   expectedReturnPct: number;
   purchaseDate: string | null;
   allocations: FundAllocation[];
-  welcomeBonusPct: number;
-  specialWelcomeBonusPct: number;
+  premiumType: PremiumType;
+  premiumFrequency: PremiumFrequency;
+  premiumTermYears: number | null;
+  welcomeBonusTiers: WelcomeBonusTier[];
   loyaltyBonusPct: number;
   loyaltyBonusStartYear: number;
 }
