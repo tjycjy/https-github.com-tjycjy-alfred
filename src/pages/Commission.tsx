@@ -44,6 +44,13 @@ function TierRows({ tiers, onChange }: { tiers: CommissionRateTier[]; onChange: 
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-2 text-xs font-medium text-slate-500">
+        <span>From year</span>
+        <span>To year</span>
+        <span>Commission %</span>
+        <span></span>
+        <span></span>
+      </div>
       {tiers.map((t) => (
         <div key={t.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] items-center gap-2">
           <input
