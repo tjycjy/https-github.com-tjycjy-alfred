@@ -71,6 +71,17 @@ function navOnOrBefore(history: FundHistoryPoint[], target: Date): number | null
   return result;
 }
 
+// NAV on the purchase date if available, else the nearest later trading date
+// (you can't buy at a price from before you bought — but if the exact day was a
+// weekend/holiday, the next available price is the closest honest approximation).
+export function navOnOrAfter(historyRaw: FundHistoryPoint[], targetDate: string): number | null {
+  const history = sortHistory(historyRaw);
+  for (const p of history) {
+    if (p.date >= targetDate) return p.nav;
+  }
+  return history.length > 0 ? history[history.length - 1].nav : null;
+}
+
 function pctChange(from: number | null, to: number | null): number | null {
   if (from === null || to === null || from === 0) return null;
   return to / from - 1;

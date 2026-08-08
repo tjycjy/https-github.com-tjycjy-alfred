@@ -290,6 +290,9 @@ export interface InvestmentHolding {
   investedAmount: number;
   currentValue: number;
   expectedReturnPct: number;
+  linkedFundId: UUID | null;
+  purchaseDate: string | null;
+  units: number | null;
 }
 
 export const LIFE_EVENT_TYPES = ['Income Change', 'Career Break', 'Retrenchment', 'Critical Illness', 'New Dependant', 'Other'] as const;
