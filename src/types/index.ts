@@ -284,15 +284,24 @@ export interface AssetItem {
   amount: number;
 }
 
+export interface FundAllocation {
+  id: UUID;
+  fundId: string;
+  percentage: number;
+}
+
 export interface InvestmentHolding {
   id: UUID;
   fundName: string;
   investedAmount: number;
   currentValue: number;
   expectedReturnPct: number;
-  linkedFundId: UUID | null;
   purchaseDate: string | null;
-  units: number | null;
+  allocations: FundAllocation[];
+  welcomeBonusPct: number;
+  specialWelcomeBonusPct: number;
+  loyaltyBonusPct: number;
+  loyaltyBonusStartYear: number;
 }
 
 export const LIFE_EVENT_TYPES = ['Income Change', 'Career Break', 'Retrenchment', 'Critical Illness', 'New Dependant', 'Other'] as const;

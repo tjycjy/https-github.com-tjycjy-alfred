@@ -21,6 +21,18 @@ const INSURERS = ['Great Eastern', 'AIA', 'Prudential', 'Manulife', 'iFAST', 'Ot
 const RANGE_OPTIONS = ['YTD', '1Y', '3Y', '5Y', '10Y', 'Max'] as const;
 type RangeOption = (typeof RANGE_OPTIONS)[number];
 
+const SORT_COLUMNS = [
+  { key: 'name', label: 'Fund', align: 'left' as const },
+  { key: 'assetClass', label: 'Class', align: 'left' as const },
+  { key: 'nav', label: 'NAV', align: 'right' as const },
+  { key: 'daily', label: 'Daily', align: 'right' as const },
+  { key: 'r1m', label: '1M', align: 'right' as const },
+  { key: 'ytd', label: 'YTD', align: 'right' as const },
+  { key: 'r1y', label: '1Y Ann.', align: 'right' as const },
+  { key: 'r5y', label: '5Y Ann.', align: 'right' as const },
+] as const;
+type SortKey = (typeof SORT_COLUMNS)[number]['key'];
+
 function pct(v: number | null, digits = 1): string {
   if (v === null) return '—';
   return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(digits)}%`;
@@ -37,6 +49,8 @@ export default function FundTools() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'unavailable'>('idle');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const load = async () => {
     setLoading(true);
@@ -65,6 +79,45 @@ export default function FundTools() {
     if (classFilter === 'All') return funds;
     return funds.filter((f) => (f.assetClass || 'Other').split(' ')[0] === classFilter);
   }, [funds, classFilter]);
+
+  const rows = useMemo(() => {
+    return filtered.map((f) => {
+      const snap = computeFundSnapshot(f.history);
+      return {
+        fund: f,
+        snap,
+        nav: snap.latestNav ?? f.nav,
+        daily: snap.dailyReturn,
+        r1m: snap.r1m,
+        ytd: snap.ytd,
+        r1y: snap.r1y ?? (f.return1y !== null ? f.return1y / 100 : null),
+        r5y: snap.r5y ?? (f.return5y !== null ? f.return5y / 100 : null),
+      };
+    });
+  }, [filtered]);
+
+  const sortedRows = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (sortKey === 'name') return a.fund.name.localeCompare(b.fund.name) * dir;
+      if (sortKey === 'assetClass') return (a.fund.assetClass || '').localeCompare(b.fund.assetClass || '') * dir;
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1; // nulls always last regardless of direction
+      if (bv === null) return -1;
+      return (av - bv) * dir;
+    });
+  }, [rows, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' || key === 'assetClass' ? 'asc' : 'desc');
+    }
+  };
 
   const selected = funds.find((f) => f.id === selectedId) ?? null;
 
@@ -112,58 +165,55 @@ export default function FundTools() {
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-slate-500">
-                  <th className="py-2">Fund</th>
-                  <th className="py-2">Class</th>
-                  <th className="py-2 text-right">NAV</th>
-                  <th className="py-2 text-right">Daily</th>
-                  <th className="py-2 text-right">1M</th>
-                  <th className="py-2 text-right">YTD</th>
-                  <th className="py-2 text-right">1Y Ann.</th>
-                  <th className="py-2 text-right">5Y Ann.</th>
+                  {SORT_COLUMNS.map((col) => (
+                    <th key={col.key} className={`py-2 ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                      <button
+                        onClick={() => toggleSort(col.key)}
+                        className={`inline-flex items-center gap-1 font-medium hover:text-slate-700 ${sortKey === col.key ? 'text-indigo-600' : ''}`}
+                      >
+                        {col.label}
+                        {sortKey === col.key && <span className="text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                      </button>
+                    </th>
+                  ))}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((f) => {
-                  const snap = computeFundSnapshot(f.history);
-                  const nav = snap.latestNav ?? f.nav;
-                  const r1y = snap.r1y ?? (f.return1y !== null ? f.return1y / 100 : null);
-                  const r5y = snap.r5y ?? (f.return5y !== null ? f.return5y / 100 : null);
-                  return (
-                    <tr
-                      key={f.id}
-                      onClick={() => setSelectedId(f.id)}
-                      className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${selectedId === f.id ? 'bg-indigo-50' : ''}`}
-                    >
-                      <td className="py-2 font-medium text-slate-700">
-                        {f.name}
-                        {f.sourceFileName === AUTO_SYNC_TAG && (
-                          <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                            Auto-synced
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 text-slate-500">{f.assetClass || '—'}</td>
-                      <td className="py-2 text-right text-slate-600">{nav !== null ? nav.toFixed(3) : '—'}</td>
-                      <td className={`py-2 text-right font-medium ${pctTone(snap.dailyReturn)}`}>{pct(snap.dailyReturn, 2)}</td>
-                      <td className={`py-2 text-right font-medium ${pctTone(snap.r1m)}`}>{pct(snap.r1m)}</td>
-                      <td className={`py-2 text-right font-medium ${pctTone(snap.ytd)}`}>{pct(snap.ytd)}</td>
-                      <td className={`py-2 text-right font-medium ${pctTone(r1y)}`}>{pct(r1y)}</td>
-                      <td className={`py-2 text-right font-medium ${pctTone(r5y)}`}>{pct(r5y)}</td>
-                      <td className="py-2 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteFund(f.id).then(load);
-                          }}
-                          className="text-slate-300 hover:text-rose-500"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {sortedRows.map(({ fund: f, nav, daily, r1m, ytd, r1y, r5y }) => (
+                  <tr
+                    key={f.id}
+                    onClick={() => setSelectedId(f.id)}
+                    className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${selectedId === f.id ? 'bg-indigo-50' : ''}`}
+                  >
+                    <td className="py-2 font-medium text-slate-700">
+                      {f.name}
+                      {f.sourceFileName === AUTO_SYNC_TAG && (
+                        <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                          Auto-synced
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 text-slate-500">{f.assetClass || '—'}</td>
+                    <td className="py-2 text-right text-slate-600">{nav !== null ? nav.toFixed(3) : '—'}</td>
+                    <td className={`py-2 text-right font-medium ${pctTone(daily)}`}>{pct(daily, 2)}</td>
+                    <td className={`py-2 text-right font-medium ${pctTone(r1m)}`}>{pct(r1m)}</td>
+                    <td className={`py-2 text-right font-medium ${pctTone(ytd)}`}>{pct(ytd)}</td>
+                    <td className={`py-2 text-right font-medium ${pctTone(r1y)}`}>{pct(r1y)}</td>
+                    <td className={`py-2 text-right font-medium ${pctTone(r5y)}`}>{pct(r5y)}</td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFund(f.id).then(load);
+                        }}
+                        className="text-slate-300 hover:text-rose-500"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

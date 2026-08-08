@@ -11,7 +11,7 @@ import { calcCpfContribution, CPF_RATES_NOTE } from '../../lib/calculators/cpf';
 import { compoundInterestSeries } from '../../lib/calculators/finance';
 import { projectCashflow } from '../../lib/calculators/cashflowProjection';
 import { computeGap, combineCoverage, formatCurrency } from '../../lib/coverageGap';
-import { computeFundSnapshot, navOnOrAfter } from '../../lib/fundMetrics';
+import { computeHoldingLiveValue, type HoldingLiveValue } from '../../lib/investmentGrowth';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { SliderInput } from '../../components/ui/SliderInput';
@@ -500,30 +500,6 @@ function CpfSection({
   );
 }
 
-interface LiveHoldingValue {
-  fund: FundEntry;
-  purchaseNav: number;
-  latestNav: number;
-  latestDate: string | null;
-  units: number;
-  currentValue: number;
-  gainPct: number;
-}
-
-function computeLiveValue(holding: InvestmentHolding, fundsById: Map<string, FundEntry>): LiveHoldingValue | null {
-  if (!holding.linkedFundId || !holding.purchaseDate) return null;
-  const fund = fundsById.get(holding.linkedFundId);
-  if (!fund || fund.history.length === 0) return null;
-  const purchaseNav = navOnOrAfter(fund.history, holding.purchaseDate);
-  if (purchaseNav === null || purchaseNav === 0) return null;
-  const snap = computeFundSnapshot(fund.history);
-  if (snap.latestNav === null) return null;
-  const units = holding.units ?? holding.investedAmount / purchaseNav;
-  const currentValue = units * snap.latestNav;
-  const gainPct = holding.investedAmount > 0 ? ((currentValue - holding.investedAmount) / holding.investedAmount) * 100 : 0;
-  return { fund, purchaseNav, latestNav: snap.latestNav, latestDate: snap.latestDate, units, currentValue, gainPct };
-}
-
 function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile; setProfile: (p: FinancialProfile) => void }) {
   const [years, setYears] = useState(10);
   const [funds, setFunds] = useState<FundEntry[]>([]);
@@ -540,60 +516,53 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
       ...profile,
       investments: [
         ...profile.investments,
-        { id: newId(), fundName: '', investedAmount: 0, currentValue: 0, expectedReturnPct: 5, linkedFundId: null, purchaseDate: null, units: null },
+        {
+          id: newId(),
+          fundName: '',
+          investedAmount: 0,
+          currentValue: 0,
+          expectedReturnPct: 5,
+          purchaseDate: null,
+          allocations: [],
+          welcomeBonusPct: 0,
+          specialWelcomeBonusPct: 0,
+          loyaltyBonusPct: 0,
+          loyaltyBonusStartYear: 10,
+        },
       ],
     });
   const updateHolding = (id: string, patch: Partial<InvestmentHolding>) =>
     setProfile({ ...profile, investments: profile.investments.map((h) => (h.id === id ? { ...h, ...patch } : h)) });
   const removeHolding = (id: string) => setProfile({ ...profile, investments: profile.investments.filter((h) => h.id !== id) });
 
-  const linkFund = (id: string, fundId: string) => {
-    if (!fundId) {
-      updateHolding(id, { linkedFundId: null, units: null });
-      return;
-    }
-    const fund = fundsById.get(fundId);
-    if (!fund) return;
-    const holding = profile.investments.find((h) => h.id === id);
-    const purchaseDate = holding?.purchaseDate ?? new Date().toISOString().slice(0, 10);
-    const purchaseNav = navOnOrAfter(fund.history, purchaseDate);
-    const units = purchaseNav && holding?.investedAmount ? holding.investedAmount / purchaseNav : null;
-    updateHolding(id, { linkedFundId: fund.id, fundName: fund.name, purchaseDate, units });
+  const addAllocation = (h: InvestmentHolding) => {
+    const nextAlloc = h.allocations.length === 0 ? { id: newId(), fundId: '', percentage: 100 } : { id: newId(), fundId: '', percentage: 0 };
+    updateHolding(h.id, {
+      allocations: [...h.allocations, nextAlloc],
+      purchaseDate: h.purchaseDate ?? new Date().toISOString().slice(0, 10),
+    });
   };
-
-  const setPurchaseDate = (holding: InvestmentHolding, date: string) => {
-    if (!holding.linkedFundId) {
-      updateHolding(holding.id, { purchaseDate: date });
-      return;
-    }
-    const fund = fundsById.get(holding.linkedFundId);
-    const purchaseNav = fund ? navOnOrAfter(fund.history, date) : null;
-    const units = purchaseNav && holding.investedAmount ? holding.investedAmount / purchaseNav : holding.units;
-    updateHolding(holding.id, { purchaseDate: date, units });
-  };
-
-  const setInvestedAmount = (holding: InvestmentHolding, amount: number) => {
-    if (!holding.linkedFundId || !holding.purchaseDate) {
-      updateHolding(holding.id, { investedAmount: amount });
-      return;
-    }
-    const fund = fundsById.get(holding.linkedFundId);
-    const purchaseNav = fund ? navOnOrAfter(fund.history, holding.purchaseDate) : null;
-    const units = purchaseNav ? amount / purchaseNav : holding.units;
-    updateHolding(holding.id, { investedAmount: amount, units });
+  const updateAllocation = (h: InvestmentHolding, allocId: string, patch: Partial<{ fundId: string; percentage: number }>) =>
+    updateHolding(h.id, { allocations: h.allocations.map((a) => (a.id === allocId ? { ...a, ...patch } : a)) });
+  const removeAllocation = (h: InvestmentHolding, allocId: string) =>
+    updateHolding(h.id, { allocations: h.allocations.filter((a) => a.id !== allocId) });
+  const normalizeAllocations = (h: InvestmentHolding) => {
+    const total = h.allocations.reduce((s, a) => s + a.percentage, 0);
+    if (total === 0) return;
+    updateHolding(h.id, { allocations: h.allocations.map((a) => ({ ...a, percentage: Math.round((a.percentage / total) * 100) })) });
   };
 
   const liveValues = useMemo(() => {
-    const map = new Map<string, LiveHoldingValue>();
+    const map = new Map<string, HoldingLiveValue>();
     for (const h of profile.investments) {
-      const live = computeLiveValue(h, fundsById);
+      const live = computeHoldingLiveValue(h, fundsById);
       if (live) map.set(h.id, live);
     }
     return map;
   }, [profile.investments, fundsById]);
 
   // Keep each linked holding's stored currentValue in sync with the live-computed figure
-  // so other views (e.g. the printed Report) reflect real NAV growth, not a stale manual number.
+  // so other views (e.g. the printed Report) reflect real NAV + bonus growth, not a stale manual number.
   useEffect(() => {
     if (liveValues.size === 0) return;
     let changed = false;
@@ -633,75 +602,196 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
           <div className="flex flex-col gap-4">
             {profile.investments.map((h) => {
               const live = liveValues.get(h.id);
+              const allocTotal = h.allocations.reduce((s, a) => s + a.percentage, 0);
               return (
                 <div key={h.id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_100px]">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_100px]">
                     <input
                       value={h.fundName}
                       onChange={(e) => updateHolding(h.id, { fundName: e.target.value })}
-                      placeholder="Fund / holding name"
+                      placeholder="Fund / holding name (e.g. GREAT Wealth Advantage)"
                       className="input"
                     />
-                    <select value={h.linkedFundId ?? ''} onChange={(e) => linkFund(h.id, e.target.value)} className="input">
-                      <option value="">— No linked fund (manual entry) —</option>
-                      {fundsWithHistory.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.insurer} — {f.name}
-                        </option>
-                      ))}
-                    </select>
                     <button onClick={() => removeHolding(h.id)} className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-100">
                       Remove
                     </button>
                   </div>
 
-                  {h.linkedFundId ? (
-                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-500">Purchase date</label>
-                        <input
-                          type="date"
-                          value={h.purchaseDate ?? ''}
-                          onChange={(e) => setPurchaseDate(h, e.target.value)}
-                          className="input"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-500">Amount invested</label>
-                        <input
-                          type="number"
-                          value={h.investedAmount}
-                          onChange={(e) => setInvestedAmount(h, Number(e.target.value))}
-                          className="input"
-                        />
-                      </div>
-                      {live ? (
-                        <>
-                          <div className="rounded-xl bg-slate-50 p-3">
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Current Value</p>
-                            <p className="text-lg font-bold text-slate-800">{formatCurrency(live.currentValue)}</p>
-                            <p className="text-xs text-slate-400">
-                              {live.units.toFixed(2)} units @ {live.latestNav.toFixed(4)}
-                              {live.latestDate && ` (${formatDate(live.latestDate)})`}
-                            </p>
-                          </div>
-                          <div className="rounded-xl bg-slate-50 p-3">
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain / Loss</p>
-                            <p className={`text-lg font-bold ${live.gainPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {live.gainPct >= 0 ? '+' : ''}
-                              {live.gainPct.toFixed(1)}%
-                            </p>
-                            <p className="text-xs text-slate-400">
-                              {formatCurrency(live.currentValue - h.investedAmount)} since {h.purchaseDate ? formatDate(h.purchaseDate) : '—'}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="col-span-2 flex items-center rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-                          Set a purchase date and amount to compute live value from this fund's price history.
-                        </div>
+                  <div className="mt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="text-xs font-medium text-slate-500">Fund allocation (split across multiple funds if needed)</label>
+                      {h.allocations.length > 0 && (
+                        <span className={`text-xs font-semibold ${allocTotal === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          Total: {allocTotal}%
+                        </span>
                       )}
                     </div>
+                    {h.allocations.map((a) => (
+                      <div key={a.id} className="mb-2 grid grid-cols-[1fr_90px_36px] gap-2">
+                        <select value={a.fundId} onChange={(e) => updateAllocation(h, a.id, { fundId: e.target.value })} className="input">
+                          <option value="">— Select fund —</option>
+                          {fundsWithHistory.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.insurer} — {f.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          value={a.percentage}
+                          onChange={(e) => updateAllocation(h, a.id, { percentage: Number(e.target.value) })}
+                          className="input"
+                          placeholder="%"
+                        />
+                        <button onClick={() => removeAllocation(h, a.id)} className="rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100">
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <Button variant="secondary" onClick={() => addAllocation(h)} className="px-3 py-2 text-xs">
+                        {h.allocations.length === 0 ? '+ Link a fund' : '+ Split into another fund'}
+                      </Button>
+                      {h.allocations.length > 1 && allocTotal !== 100 && (
+                        <Button variant="secondary" onClick={() => normalizeAllocations(h)} className="px-3 py-2 text-xs">
+                          Normalize to 100%
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {h.allocations.length > 0 ? (
+                    <>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-500">Purchase date</label>
+                          <input
+                            type="date"
+                            value={h.purchaseDate ?? ''}
+                            onChange={(e) => updateHolding(h.id, { purchaseDate: e.target.value })}
+                            className="input"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-500">Amount invested</label>
+                          <input
+                            type="number"
+                            value={h.investedAmount}
+                            onChange={(e) => updateHolding(h.id, { investedAmount: Number(e.target.value) })}
+                            className="input"
+                          />
+                        </div>
+                        {live ? (
+                          <>
+                            <div className="rounded-xl bg-slate-50 p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Current Value</p>
+                              <p className="text-lg font-bold text-slate-800">{formatCurrency(live.currentValue)}</p>
+                              <p className="text-xs text-slate-400">{live.latestDate && `as of ${formatDate(live.latestDate)}`}</p>
+                            </div>
+                            <div className="rounded-xl bg-slate-50 p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain / Loss</p>
+                              <p className={`text-lg font-bold ${live.gainPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {live.gainPct >= 0 ? '+' : ''}
+                                {live.gainPct.toFixed(1)}%
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {formatCurrency(live.currentValue - h.investedAmount)} since {h.purchaseDate ? formatDate(h.purchaseDate) : '—'}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="col-span-2 flex items-center rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
+                            Select a fund, purchase date and amount to compute live value.
+                          </div>
+                        )}
+                      </div>
+
+                      {live && live.allocations.length > 1 && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="w-full min-w-[420px] text-xs">
+                            <thead>
+                              <tr className="text-left text-slate-400">
+                                <th className="py-1">Fund</th>
+                                <th className="py-1 text-right">Split</th>
+                                <th className="py-1 text-right">Units</th>
+                                <th className="py-1 text-right">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {live.allocations.map((a) => (
+                                <tr key={a.allocationId} className="border-t border-slate-100">
+                                  <td className="py-1 text-slate-600">{a.fund.name}</td>
+                                  <td className="py-1 text-right text-slate-500">{a.percentage}%</td>
+                                  <td className="py-1 text-right text-slate-500">{a.units.toFixed(2)}</td>
+                                  <td className="py-1 text-right font-medium text-slate-700">{formatCurrency(a.value)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-indigo-600">GREAT Wealth Advantage bonuses (optional)</summary>
+                        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Welcome Bonus %</label>
+                            <input
+                              type="number"
+                              value={h.welcomeBonusPct}
+                              onChange={(e) => updateHolding(h.id, { welcomeBonusPct: Number(e.target.value) })}
+                              className="input"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Special Welcome Bonus %</label>
+                            <input
+                              type="number"
+                              value={h.specialWelcomeBonusPct}
+                              onChange={(e) => updateHolding(h.id, { specialWelcomeBonusPct: Number(e.target.value) })}
+                              className="input"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Loyalty Bonus % p.a.</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={h.loyaltyBonusPct}
+                              onChange={(e) => updateHolding(h.id, { loyaltyBonusPct: Number(e.target.value) })}
+                              className="input"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-500">Starts after (years)</label>
+                            <input
+                              type="number"
+                              value={h.loyaltyBonusStartYear}
+                              onChange={(e) => updateHolding(h.id, { loyaltyBonusStartYear: Number(e.target.value) })}
+                              className="input"
+                            />
+                          </div>
+                        </div>
+                        {live && (live.welcomeBonusValue > 0.01 || live.loyaltyBonusValue > 0.01) && (
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {live.welcomeBonusValue > 0.01 && (
+                              <div className="rounded-xl bg-indigo-50 p-3">
+                                <p className="text-xs font-medium uppercase tracking-wide text-indigo-400">Welcome Bonus value today</p>
+                                <p className="text-lg font-bold text-indigo-700">{formatCurrency(live.welcomeBonusValue)}</p>
+                                <p className="text-xs text-indigo-400">extra units bought by the bonus, grown with the fund</p>
+                              </div>
+                            )}
+                            {live.loyaltyBonusValue > 0.01 && (
+                              <div className="rounded-xl bg-amber-50 p-3">
+                                <p className="text-xs font-medium uppercase tracking-wide text-amber-500">Loyalty Bonus (illustrative)</p>
+                                <p className="text-lg font-bold text-amber-700">{formatCurrency(live.loyaltyBonusValue)}</p>
+                                <p className="text-xs text-amber-500">estimate only — confirm against the Benefit Illustration</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </details>
+                    </>
                   ) : (
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <input
