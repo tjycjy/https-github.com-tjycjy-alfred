@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listFunds, addFund, deleteFund, upsertFundHistory } from '../db/funds';
 import { computeFundSnapshot, computeDrawdownSeries, computeMonthlyReturns } from '../lib/fundMetrics';
+import { syncBundledFundPrices, AUTO_SYNC_TAG } from '../lib/fundSync';
 import { parseBulkFundCsv, parseSingleFundCsv } from '../lib/fundImport';
 import type { ParsedFund } from '../lib/fundImport';
 import { extractFactsheetText, guessFactsheetFields } from '../lib/fundFactsheet';
@@ -35,6 +36,7 @@ export default function FundTools() {
   const [showImport, setShowImport] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState('All');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'unavailable'>('idle');
 
   const load = async () => {
     setLoading(true);
@@ -45,7 +47,13 @@ export default function FundTools() {
   };
 
   useEffect(() => {
-    load();
+    (async () => {
+      await load();
+      setSyncStatus('syncing');
+      const result = await syncBundledFundPrices();
+      setSyncStatus(result && result.synced > 0 ? 'synced' : 'unavailable');
+      if (result && result.synced > 0) await load();
+    })();
   }, []);
 
   const classes = useMemo(() => {
@@ -73,6 +81,11 @@ export default function FundTools() {
           <p className="text-slate-500">
             Track NAV history, returns, volatility and drawdown for your clients' insurer-linked funds.
             {latestAsOf && ` Data as of ${formatDate(latestAsOf)}.`}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            {syncStatus === 'syncing' && '🔄 Syncing GreatLink fund prices…'}
+            {syncStatus === 'synced' && '✓ GreatLink funds auto-synced from Great Eastern’s public price feed.'}
+            {syncStatus === 'unavailable' && 'Auto-sync not available offline — showing your imported/cached data.'}
           </p>
         </div>
         <Button onClick={() => setShowImport(true)}>+ Import Data</Button>
@@ -122,7 +135,14 @@ export default function FundTools() {
                       onClick={() => setSelectedId(f.id)}
                       className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${selectedId === f.id ? 'bg-indigo-50' : ''}`}
                     >
-                      <td className="py-2 font-medium text-slate-700">{f.name}</td>
+                      <td className="py-2 font-medium text-slate-700">
+                        {f.name}
+                        {f.sourceFileName === AUTO_SYNC_TAG && (
+                          <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            Auto-synced
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 text-slate-500">{f.assetClass || '—'}</td>
                       <td className="py-2 text-right text-slate-600">{nav !== null ? nav.toFixed(3) : '—'}</td>
                       <td className={`py-2 text-right font-medium ${pctTone(snap.dailyReturn)}`}>{pct(snap.dailyReturn, 2)}</td>

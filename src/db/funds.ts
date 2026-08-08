@@ -32,6 +32,7 @@ export async function upsertFundHistory(input: {
   insurer: string;
   assetClass: string;
   history: FundHistoryPoint[];
+  sourceFileName?: string | null;
 }): Promise<FundEntry> {
   const db = await getDb();
   const all = await db.getAll('funds');
@@ -44,6 +45,7 @@ export async function upsertFundHistory(input: {
         assetClass: input.assetClass,
         history: input.history,
         nav: latest?.nav ?? existing.nav,
+        sourceFileName: input.sourceFileName !== undefined ? input.sourceFileName : existing.sourceFileName,
         updatedAt: nowIso(),
       }
     : {
@@ -56,7 +58,7 @@ export async function upsertFundHistory(input: {
         return3y: null,
         return5y: null,
         history: input.history,
-        sourceFileName: null,
+        sourceFileName: input.sourceFileName ?? null,
         updatedAt: nowIso(),
       };
   await db.put('funds', fund);

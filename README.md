@@ -78,6 +78,24 @@ npx vercel --prod --yes
 
 This redeploys to the same stable URL. The build includes a service worker that precaches the entire app shell, so once a user's installed PWA reloads after a deploy, it keeps working fully offline.
 
+### GreatLink fund price auto-sync (one-time setup)
+
+`.github/workflows/sync-fund-prices.yml` runs `scripts/syncFundPrices.mjs` on a schedule (weekday evenings) to pull current GreatLink fund prices from Great Eastern's own public price-lookup API (the same JSON endpoint their public fund-prices page calls — no login required, first-party published data, not a scrape of any licensed feed). It writes the results to `public/data/funds/`, commits them, and redeploys — the deployed app reads these same-origin at runtime, so Fund Tools shows current GreatLink prices with zero manual CSV upload, entirely within the "no backend" architecture (the fetch happens in GitHub's CI runner, not in anyone's browser, and not on any server you host).
+
+To turn this on:
+
+1. Go to **vercel.com/account/tokens** and create a token.
+2. In the GitHub repo, go to **Settings → Secrets and variables → Actions → New repository secret**, name it `VERCEL_TOKEN`, and paste the token.
+3. That's it — the workflow runs automatically on schedule, or trigger it manually from the **Actions** tab ("Run workflow").
+
+To seed multiple years of history in one go instead of waiting for it to accumulate day by day, run locally once:
+
+```bash
+node scripts/syncFundPrices.mjs --backfill=5   # 5 years of history for every GreatLink fund
+```
+
+Funds from other insurers (AIA, Prudential, Manulife, etc.) still use the CSV import / quick-entry flow in Fund Tools, since only Great Eastern publishes this kind of open first-party price feed.
+
 ### Project structure
 
 - `src/pages/` — top-level routes; `src/pages/clients/` — per-client tabs (Basic Info, Meeting Log, Fact-Find, Portfolio, Household, Report)

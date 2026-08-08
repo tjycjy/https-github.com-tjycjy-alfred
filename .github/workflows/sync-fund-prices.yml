@@ -1,0 +1,66 @@
+name: Sync GreatLink Fund Prices
+
+on:
+  schedule:
+    # 15:30 UTC = 23:30 SGT, weekdays — after Great Eastern confirms the day's fund prices.
+    - cron: '30 15 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch latest GreatLink fund prices
+        run: node scripts/syncFundPrices.mjs
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- public/data/funds; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit updated fund prices
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "alfred-fund-sync[bot]"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/data/funds
+          git commit -m "Sync GreatLink fund prices ($(date -u +%Y-%m-%d))"
+          git push
+
+      - name: Install Vercel CLI
+        if: steps.diff.outputs.changed == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Link Vercel project
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          mkdir -p .vercel
+          echo '{"projectId":"prj_cyRGzyDbWfW1ng4M9u0aOYlQiGP2","orgId":"team_TIUKjFSuVZKD2TjV7h0AxwO5","projectName":"fa-dashboard"}' > .vercel/project.json
+
+      - name: Deploy to Vercel production
+        if: steps.diff.outputs.changed == 'true'
+        id: deploy
+        run: |
+          OUTPUT=$(vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
+          echo "$OUTPUT"
+          URL=$(echo "$OUTPUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Point alfred-ge.vercel.app at the new deployment
+        if: steps.diff.outputs.changed == 'true'
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" alfred-ge.vercel.app --token=${{ secrets.VERCEL_TOKEN }}
