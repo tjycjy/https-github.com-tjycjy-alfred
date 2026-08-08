@@ -8,7 +8,7 @@ import { listFunds } from '../../db/funds';
 import { newId } from '../../lib/id';
 import { calcAge, formatDate } from '../../lib/age';
 import { calcCpfContribution, CPF_RATES_NOTE } from '../../lib/calculators/cpf';
-import { compoundInterestSeries } from '../../lib/calculators/finance';
+import { projectHolding, projectPortfolio } from '../../lib/investmentProjection';
 import { projectCashflow } from '../../lib/calculators/cashflowProjection';
 import { computeGap, combineCoverage, formatCurrency } from '../../lib/coverageGap';
 import { computeHoldingLiveValue, type HoldingLiveValue } from '../../lib/investmentGrowth';
@@ -599,7 +599,10 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
           return s + h.expectedReturnPct * (cv / totalCurrent);
         }, 0)
       : 0;
-  const series = useMemo(() => compoundInterestSeries(totalCurrent, blendedReturn, years, 'annual', 0), [totalCurrent, blendedReturn, years]);
+  const series = useMemo(
+    () => projectPortfolio(profile.investments, liveValues, years),
+    [profile.investments, liveValues, years],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -615,6 +618,8 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
             {profile.investments.map((h) => {
               const live = liveValues.get(h.id);
               const allocTotal = h.allocations.reduce((s, a) => s + a.percentage, 0);
+              const loyaltyProjection =
+                h.loyaltyBonusPct > 0 && live ? projectHolding(h, live.currentValue, 60) : null;
               return (
                 <div key={h.id} className="rounded-xl border border-slate-200 p-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_100px]">
@@ -889,6 +894,21 @@ function InvestmentsSection({ profile, setProfile }: { profile: FinancialProfile
                                 </p>
                               </div>
                             )}
+                          </div>
+                        )}
+                        {loyaltyProjection && loyaltyProjection.firstLoyaltyYear !== null && (
+                          <div className="mt-3 rounded-xl bg-amber-50 p-3">
+                            <p className="text-xs font-medium uppercase tracking-wide text-amber-500">
+                              Projected Loyalty Bonus — policy year {h.loyaltyBonusStartYear}
+                            </p>
+                            <p className="text-lg font-bold text-amber-700">
+                              {formatCurrency(loyaltyProjection.firstLoyaltyBonusAmount ?? 0)}
+                            </p>
+                            <p className="text-xs text-amber-500">
+                              at a projected account value of {formatCurrency(loyaltyProjection.firstLoyaltyValue ?? 0)}, assuming{' '}
+                              {h.expectedReturnPct}%/yr growth — {loyaltyProjection.firstLoyaltyYear} year
+                              {loyaltyProjection.firstLoyaltyYear === 1 ? '' : 's'} from now
+                            </p>
                           </div>
                         )}
                       </details>
