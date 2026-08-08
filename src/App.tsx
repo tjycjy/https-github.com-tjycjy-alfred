@@ -12,13 +12,11 @@ import { ErrorBoundary } from './components/layout/ErrorBoundary';
 
 const Home = lazy(() => import('./pages/Home'));
 const Tasks = lazy(() => import('./pages/Tasks'));
-const Commission = lazy(() => import('./pages/Commission'));
-const Goals = lazy(() => import('./pages/Goals'));
+const CommissionGoals = lazy(() => import('./pages/CommissionGoals'));
 const Settings = lazy(() => import('./pages/Settings'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
-const Prospects = lazy(() => import('./pages/Prospects'));
 const ProspectDetail = lazy(() => import('./pages/ProspectDetail'));
-const ClientList = lazy(() => import('./pages/clients/ClientList'));
+const ClientsProspects = lazy(() => import('./pages/ClientsProspects'));
 const ClientProfile = lazy(() => import('./pages/clients/ClientProfile'));
 const BasicInfoTab = lazy(() => import('./pages/clients/BasicInfoTab'));
 const MeetingLogTab = lazy(() => import('./pages/clients/MeetingLogTab'));
@@ -73,12 +71,12 @@ export default function App() {
                 <Route element={<AppShell />}>
                   <Route index element={<AdvisorOnlyRoute><Home /></AdvisorOnlyRoute>} />
                   <Route path="tasks" element={<AdvisorOnlyRoute><Tasks /></AdvisorOnlyRoute>} />
-                  <Route path="commission" element={<AdvisorOnlyRoute><Commission /></AdvisorOnlyRoute>} />
-                  <Route path="goals" element={<AdvisorOnlyRoute><Goals /></AdvisorOnlyRoute>} />
+                  <Route path="commission" element={<AdvisorOnlyRoute><CommissionGoals /></AdvisorOnlyRoute>} />
+                  <Route path="goals" element={<AdvisorOnlyRoute><CommissionGoals /></AdvisorOnlyRoute>} />
                   <Route path="settings" element={<AdvisorOnlyRoute><Settings /></AdvisorOnlyRoute>} />
-                  <Route path="clients" element={<AdvisorOnlyRoute><ClientList /></AdvisorOnlyRoute>} />
+                  <Route path="clients" element={<AdvisorOnlyRoute><ClientsProspects /></AdvisorOnlyRoute>} />
                   <Route path="calendar" element={<AdvisorOnlyRoute><CalendarPage /></AdvisorOnlyRoute>} />
-                  <Route path="prospects" element={<AdvisorOnlyRoute><Prospects /></AdvisorOnlyRoute>} />
+                  <Route path="prospects" element={<AdvisorOnlyRoute><ClientsProspects /></AdvisorOnlyRoute>} />
                   <Route path="prospects/:prospectId" element={<AdvisorOnlyRoute><ProspectDetail /></AdvisorOnlyRoute>} />
                   <Route path="whiteboard" element={<Whiteboard />} />
                   <Route path="calculators" element={<AdvisorOnlyRoute><CalculatorsHome /></AdvisorOnlyRoute>} />
