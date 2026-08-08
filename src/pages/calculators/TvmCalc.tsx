@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { futureValue } from '../../lib/calculators/finance';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { compoundInterestSeries } from '../../lib/calculators/finance';
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
 import { SliderInput } from '../../components/ui/SliderInput';
@@ -11,7 +12,11 @@ export default function TvmCalc() {
   const [rate, setRate] = useState(5);
   const [years, setYears] = useState(15);
 
-  const fv = useMemo(() => futureValue(presentValue, rate, years, monthly), [presentValue, rate, years, monthly]);
+  const series = useMemo(
+    () => compoundInterestSeries(presentValue, rate, years, 'monthly', monthly),
+    [presentValue, rate, years, monthly],
+  );
+  const fv = series[series.length - 1].balance;
   const totalContributed = presentValue + monthly * 12 * years;
 
   return (
@@ -32,11 +37,23 @@ export default function TvmCalc() {
             <ResultStat label="Total contributed" value={formatCurrency(totalContributed)} tone="amber" />
             <ResultStat label="Growth" value={formatCurrency(fv - totalContributed)} tone="emerald" />
           </div>
-          <Card className="p-6 text-slate-500">
-            <p>
+          <Card className="p-6">
+            <p className="mb-4 text-slate-500">
               With {formatCurrency(presentValue)} today plus {formatCurrency(monthly)}/month for {years} years at{' '}
               {rate.toFixed(1)}% p.a., the plan is projected to reach <span className="font-bold text-slate-800">{formatCurrency(fv)}</span>.
             </p>
+            <div style={{ width: '100%', height: 320 }}>
+              <ResponsiveContainer>
+                <LineChart data={series}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="year" tick={{ fontSize: 12 }} label={{ value: 'Year', position: 'insideBottom', offset: -4 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v))} labelFormatter={(l) => `Year ${l}`} />
+                  <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={3} dot={false} name="Balance" />
+                  <Line type="monotone" dataKey="contributed" stroke="#cbd5e1" strokeWidth={2} dot={false} name="Contributed" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </Card>
         </div>
       </div>

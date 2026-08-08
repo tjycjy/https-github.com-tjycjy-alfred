@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { calcResidentIncomeTax } from '../../lib/calculators/sgTax';
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
@@ -7,6 +8,10 @@ import { CalculatorLayout, Field, ResultStat } from './CalculatorLayout';
 export default function TaxCalc() {
   const [income, setIncome] = useState(80000);
   const result = useMemo(() => calcResidentIncomeTax(income), [income]);
+  const chartData = useMemo(
+    () => result.breakdown.map((b) => ({ label: `${b.ratePct}%`, tax: Math.round(b.taxInBracket) })),
+    [result],
+  );
 
   return (
     <CalculatorLayout title="Income Tax Calculator" description="Singapore resident personal income tax, progressive brackets.">
@@ -23,6 +28,20 @@ export default function TaxCalc() {
             <ResultStat label="Effective tax rate" value={`${result.effectiveRatePct.toFixed(2)}%`} tone="amber" />
             <ResultStat label="Net after tax" value={formatCurrency(income - result.totalTax)} tone="emerald" />
           </div>
+          <Card className="p-6">
+            <h3 className="mb-3 font-bold text-slate-800">Tax by Bracket</h3>
+            <div style={{ width: '100%', height: 240 }}>
+              <ResponsiveContainer>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <Bar dataKey="tax" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
           <Card className="p-6">
             <h3 className="mb-3 font-bold text-slate-800">Bracket Breakdown</h3>
             <div className="flex flex-col divide-y divide-slate-100">

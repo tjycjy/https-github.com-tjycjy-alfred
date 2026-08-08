@@ -14,6 +14,8 @@ export const SG_RESIDENT_TAX_BRACKETS: TaxBracket[] = [
   { upTo: 240000, ratePct: 19 },
   { upTo: 280000, ratePct: 19.5 },
   { upTo: 320000, ratePct: 20 },
+  { upTo: 500000, ratePct: 22 },
+  { upTo: 1000000, ratePct: 23 },
   { upTo: null, ratePct: 24 },
 ];
 

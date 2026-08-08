@@ -1,14 +1,6 @@
 import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { requiredPrincipalForYield, simulateAccumulation, formatYearsMonths } from '../../lib/calculators/finance';
-import {
-  getHospitalPlanAnnualPremium,
-  SUPREME_HEALTH_PLAN_LABELS,
-  TOTAL_CARE_2_PLAN_LABELS,
-  type SupremeHealthPlan,
-  type TotalCare2Plan,
-  type Residency,
-} from '../../data/hospitalRates';
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
 import { SliderInput } from '../../components/ui/SliderInput';
@@ -16,10 +8,7 @@ import { CalculatorLayout, Field, ResultStat } from './CalculatorLayout';
 
 export default function PremiumFinancingCalc() {
   const [includeHospital, setIncludeHospital] = useState(true);
-  const [age, setAge] = useState(40);
-  const [residency, setResidency] = useState<Residency>('citizen');
-  const [supremePlan, setSupremePlan] = useState<SupremeHealthPlan>('P_PLUS');
-  const [totalCarePlan, setTotalCarePlan] = useState<TotalCare2Plan>('P');
+  const [hospitalPremium, setHospitalPremium] = useState(1500);
 
   const [includeAccident, setIncludeAccident] = useState(false);
   const [accidentPremium, setAccidentPremium] = useState(300);
@@ -34,14 +23,9 @@ export default function PremiumFinancingCalc() {
   const [monthlyContribution, setMonthlyContribution] = useState(1000);
   const [accumulationGrowth, setAccumulationGrowth] = useState(4.5);
 
-  const hospitalPremium = useMemo(
-    () => getHospitalPlanAnnualPremium(age, residency, supremePlan, totalCarePlan),
-    [age, residency, supremePlan, totalCarePlan],
-  );
-
   const totalAnnualPremium = useMemo(() => {
     let total = 0;
-    if (includeHospital) total += hospitalPremium.total;
+    if (includeHospital) total += hospitalPremium;
     if (includeAccident) total += accidentPremium;
     if (includeLife) total += lifePremium;
     if (includeOther) total += otherPremium;
@@ -70,40 +54,16 @@ export default function PremiumFinancingCalc() {
 
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <input type="checkbox" checked={includeHospital} onChange={(e) => setIncludeHospital(e.target.checked)} />
-              Hospital Plan (SupremeHealth + TotalCare 2)
+              Hospital Plan Premium
             </label>
             {includeHospital && (
-              <div className="ml-6 flex flex-col gap-3 rounded-xl bg-slate-50 p-4">
-                <SliderInput label="Age next birthday" value={age} min={1} max={100} step={1} onChange={setAge} />
-                <Field label="Residency">
-                  <select value={residency} onChange={(e) => setResidency(e.target.value as Residency)} className="input">
-                    <option value="citizen">Citizen / PR</option>
-                    <option value="foreigner">Foreigner</option>
-                  </select>
-                </Field>
-                <Field label="SupremeHealth plan">
-                  <select value={supremePlan} onChange={(e) => setSupremePlan(e.target.value as SupremeHealthPlan)} className="input">
-                    {Object.entries(SUPREME_HEALTH_PLAN_LABELS)
-                      .filter(([key]) => residency === 'citizen' || key !== 'B_PLUS')
-                      .filter(([key]) => residency === 'citizen' || key !== 'STANDARD')
-                      .map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                  </select>
-                </Field>
-                <Field label="TotalCare 2 rider">
-                  <select value={totalCarePlan} onChange={(e) => setTotalCarePlan(e.target.value as TotalCare2Plan)} className="input">
-                    {Object.entries(TOTAL_CARE_2_PLAN_LABELS)
-                      .filter(([key]) => residency === 'citizen' || key !== 'B')
-                      .map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                  </select>
-                </Field>
-                <p className="text-sm text-slate-500">
-                  Annual premium: <span className="font-bold text-slate-800">{formatCurrency(hospitalPremium.total)}</span>
-                </p>
-              </div>
+              <input
+                type="number"
+                value={hospitalPremium}
+                onChange={(e) => setHospitalPremium(Number(e.target.value))}
+                className="input ml-6 w-[calc(100%-1.5rem)]"
+                placeholder="Annual premium"
+              />
             )}
 
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">

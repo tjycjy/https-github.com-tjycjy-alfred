@@ -27,9 +27,9 @@ export default function CompoundInterestCalc() {
           <Field label="Starting principal">
             <input type="number" value={principal} onChange={(e) => setPrincipal(Number(e.target.value))} className="input" />
           </Field>
-          <SliderInput label="Annual interest rate" value={rate} min={0} max={15} step={0.1} format={(v) => `${v.toFixed(1)}%`} onChange={setRate} />
-          <SliderInput label="Years" value={years} min={1} max={40} step={1} onChange={setYears} />
-          <SliderInput label="Monthly contribution" value={monthly} min={0} max={5000} step={50} format={formatCurrency} onChange={setMonthly} />
+          <SliderInput label="Annual interest rate" value={rate} min={0} max={30} step={0.1} format={(v) => `${v.toFixed(1)}%`} onChange={setRate} />
+          <SliderInput label="Years" value={years} min={1} max={60} step={1} onChange={setYears} />
+          <SliderInput label="Monthly contribution" value={monthly} min={0} max={50000} step={100} format={formatCurrency} onChange={setMonthly} />
           <Field label="Compounding frequency">
             <select value={frequency} onChange={(e) => setFrequency(e.target.value as CompoundingFrequency)} className="input">
               <option value="annual">Annual</option>

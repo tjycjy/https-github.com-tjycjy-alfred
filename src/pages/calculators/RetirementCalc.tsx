@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { retirementNestEgg, requiredMonthlyContribution } from '../../lib/calculators/finance';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
+import { retirementNestEgg, requiredMonthlyContribution, compoundInterestSeries } from '../../lib/calculators/finance';
 import { formatCurrency } from '../../lib/coverageGap';
 import { Card } from '../../components/ui/Card';
 import { SliderInput } from '../../components/ui/SliderInput';
@@ -27,6 +28,11 @@ export default function RetirementCalc() {
     [nestEgg, yearsToRetirement, returnBeforeRetirement, currentSavings],
   );
 
+  const series = useMemo(
+    () => compoundInterestSeries(currentSavings, returnBeforeRetirement, Math.max(1, yearsToRetirement), 'monthly', monthlyNeeded),
+    [currentSavings, returnBeforeRetirement, yearsToRetirement, monthlyNeeded],
+  );
+
   return (
     <CalculatorLayout title="Retirement Calculator" description="Target monthly retirement income → required nest egg and savings plan.">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
@@ -49,12 +55,24 @@ export default function RetirementCalc() {
             <ResultStat label="Years to retirement" value={`${yearsToRetirement}`} tone="amber" />
             <ResultStat label="Required monthly savings" value={formatCurrency(Math.round(monthlyNeeded))} tone="emerald" />
           </div>
-          <Card className="p-6 text-slate-500">
-            <p>
+          <Card className="p-6">
+            <p className="mb-4 text-slate-500">
               To provide {formatCurrency(desiredIncome)}/month for {yearsInRetirement} years from age {retirementAge}, this plan needs{' '}
               <span className="font-bold text-slate-800">{formatCurrency(Math.round(nestEgg))}</span> at retirement — reachable by saving{' '}
               <span className="font-bold text-slate-800">{formatCurrency(Math.round(monthlyNeeded))}/month</span> starting today.
             </p>
+            <div style={{ width: '100%', height: 320 }}>
+              <ResponsiveContainer>
+                <LineChart data={series}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="year" tick={{ fontSize: 12 }} label={{ value: 'Year', position: 'insideBottom', offset: -4 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v))} labelFormatter={(l) => `Year ${l}`} />
+                  <ReferenceLine y={nestEgg} stroke="#f43f5e" strokeDasharray="4 4" label={{ value: 'Target', fill: '#f43f5e', fontSize: 12 }} />
+                  <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={3} dot={false} name="Balance" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </Card>
         </div>
       </div>

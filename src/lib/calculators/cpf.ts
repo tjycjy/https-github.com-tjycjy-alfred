@@ -19,7 +19,16 @@ export const CPF_AGE_BANDS: CpfAgeBand[] = [
   { label: 'Above 70', maxAge: null, employeePct: 5, employerPct: 7.5, oaPct: 1, saPct: 1, maPct: 10.5 },
 ];
 
-export const DEFAULT_OW_CEILING = 7400;
+export const DEFAULT_OW_CEILING = 8000;
+
+// 2026 cohort figures (CPF Board). BRS is half of FRS and requires a property pledge; ERS is
+// double the FRS. These are fixed for life based on the year a member turns 55, so they drift
+// year to year — re-check against the CPF Board site periodically.
+export const CPF_RETIREMENT_SUMS_2026 = {
+  basic: 110200,
+  full: 220400,
+  enhanced: 440800,
+};
 
 export function getCpfAgeBand(age: number): CpfAgeBand {
   return CPF_AGE_BANDS.find((band) => band.maxAge === null || age <= band.maxAge) ?? CPF_AGE_BANDS[CPF_AGE_BANDS.length - 1];
