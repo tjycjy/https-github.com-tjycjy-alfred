@@ -25,7 +25,7 @@ function normalizeCommission(e: LegacyCommission): CommissionEntry {
   };
 
   if (Array.isArray(e.rateTiers)) {
-    return { ...base, premiumAmount: e.premiumAmount ?? 0, rateTiers: e.rateTiers };
+    return { ...base, premiumAmount: e.premiumAmount ?? 0, paymentFrequency: e.paymentFrequency ?? 'Yearly', rateTiers: e.rateTiers };
   }
 
   if (typeof e.premiumAmount === 'number') {
@@ -33,12 +33,13 @@ function normalizeCommission(e: LegacyCommission): CommissionEntry {
     if (e.year1Pct) rateTiers.push({ id: newId(), fromYear: 1, toYear: 1, pct: e.year1Pct });
     if (e.year2to5Pct) rateTiers.push({ id: newId(), fromYear: 2, toYear: 5, pct: e.year2to5Pct });
     if (e.year6PlusPct) rateTiers.push({ id: newId(), fromYear: 6, toYear: null, pct: e.year6PlusPct });
-    return { ...base, premiumAmount: e.premiumAmount, rateTiers };
+    return { ...base, premiumAmount: e.premiumAmount, paymentFrequency: 'Yearly', rateTiers };
   }
 
   return {
     ...base,
     premiumAmount: e.amount ?? 0,
+    paymentFrequency: 'Yearly',
     rateTiers: [{ id: newId(), fromYear: 1, toYear: 1, pct: 100 }],
   };
 }

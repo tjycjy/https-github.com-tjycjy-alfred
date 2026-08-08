@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listCommissions, addCommission, updateCommission, deleteCommission, listPipeline, addPipelineEntry, updatePipelineEntry, deletePipelineEntry } from '../db/commission';
-import { year1CommissionAmount, ytdFyc, tierRangeLabel, exportCommissionCsv } from '../lib/commission';
+import { year1CommissionAmount, ytdFyc, tierRangeLabel, tierCommissionLabel, exportCommissionCsv, COMMISSION_PAYMENTS_PER_YEAR } from '../lib/commission';
 import { newId } from '../lib/id';
 import { formatDate } from '../lib/age';
 import { formatCurrency } from '../lib/coverageGap';
@@ -9,13 +9,15 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { DateInput } from '../components/ui/DateInput';
-import type { CommissionEntry, CommissionRateTier, PipelineEntry, PipelineStatus } from '../types';
+import { PREMIUM_FREQUENCIES } from '../types';
+import type { CommissionEntry, CommissionRateTier, PipelineEntry, PipelineStatus, PremiumFrequency } from '../types';
 
 const emptyForm = {
   date: new Date().toISOString().slice(0, 10),
   clientName: '',
   product: '',
   premiumAmount: '',
+  paymentFrequency: 'Yearly' as PremiumFrequency,
 };
 
 function firstTierRow(): CommissionRateTier {
@@ -133,6 +135,7 @@ export default function Commission() {
       clientName: form.clientName.trim(),
       product: form.product.trim(),
       premiumAmount: Number(form.premiumAmount),
+      paymentFrequency: form.paymentFrequency,
       rateTiers: tiers,
     });
     setForm(emptyForm);
@@ -168,7 +171,8 @@ export default function Commission() {
   const totalThisYear = ytdFyc(entries);
   const totalPipeline = pipeline.filter((p) => p.status !== 'Closed').reduce((s, p) => s + p.expectedAmount, 0);
   const year1Tier = tiers.find((t) => t.fromYear <= 1 && (t.toYear === null || t.toYear >= 1));
-  const formPreview = (Number(form.premiumAmount) || 0) * ((year1Tier?.pct ?? 0) / 100);
+  const formPreviewPerPayment = (Number(form.premiumAmount) || 0) * ((year1Tier?.pct ?? 0) / 100);
+  const formPreview = formPreviewPerPayment * COMMISSION_PAYMENTS_PER_YEAR[form.paymentFrequency];
 
   const statusTone: Record<PipelineStatus, 'slate' | 'amber' | 'green'> = {
     Proposed: 'slate',
@@ -254,18 +258,34 @@ export default function Commission() {
             <input placeholder="Client" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
             <input placeholder="Product" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} className="input" />
           </div>
-          <input
-            type="number"
-            placeholder="Premium ($) e.g. 1000"
-            value={form.premiumAmount}
-            onChange={(e) => setForm({ ...form, premiumAmount: e.target.value })}
-            className="input sm:max-w-xs"
-          />
+          <div className="grid grid-cols-1 gap-2 sm:max-w-md sm:grid-cols-2">
+            <input
+              type="number"
+              placeholder="Premium per payment ($) e.g. 100"
+              value={form.premiumAmount}
+              onChange={(e) => setForm({ ...form, premiumAmount: e.target.value })}
+              className="input"
+            />
+            <select
+              value={form.paymentFrequency}
+              onChange={(e) => setForm({ ...form, paymentFrequency: e.target.value as PremiumFrequency })}
+              className="input"
+            >
+              {PREMIUM_FREQUENCIES.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <p className="mb-1 text-xs font-semibold text-slate-500">Commission rate by policy year</p>
             <TierRows tiers={tiers} onChange={setTiers} />
           </div>
-          {formPreview > 0 && <p className="text-xs font-semibold text-emerald-600">Year 1 commission: {formatCurrency(formPreview)}</p>}
+          {formPreview > 0 && (
+            <p className="text-xs font-semibold text-emerald-600">
+              Year 1 commission: {formatCurrency(formPreviewPerPayment)}
+              {form.paymentFrequency !== 'Yearly' && ` × ${COMMISSION_PAYMENTS_PER_YEAR[form.paymentFrequency]} = ${formatCurrency(formPreview)}/yr`}
+            </p>
+          )}
           <Button onClick={addEntry} className="self-start">Add</Button>
         </div>
 
@@ -286,13 +306,24 @@ export default function Commission() {
                     <input value={e.clientName} onChange={(ev) => patch({ clientName: ev.target.value })} placeholder="Client" className="input" />
                     <input value={e.product} onChange={(ev) => patch({ product: ev.target.value })} placeholder="Product" className="input" />
                   </div>
-                  <input
-                    type="number"
-                    value={e.premiumAmount}
-                    onChange={(ev) => patch({ premiumAmount: Number(ev.target.value) })}
-                    className="input sm:max-w-xs"
-                    placeholder="Premium ($)"
-                  />
+                  <div className="grid grid-cols-1 gap-2 sm:max-w-md sm:grid-cols-2">
+                    <input
+                      type="number"
+                      value={e.premiumAmount}
+                      onChange={(ev) => patch({ premiumAmount: Number(ev.target.value) })}
+                      className="input"
+                      placeholder="Premium per payment ($)"
+                    />
+                    <select
+                      value={e.paymentFrequency}
+                      onChange={(ev) => patch({ paymentFrequency: ev.target.value as PremiumFrequency })}
+                      className="input"
+                    >
+                      {PREMIUM_FREQUENCIES.map((f) => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <p className="mb-1 text-xs font-semibold text-slate-500">Commission rate by policy year</p>
                     <TierRows tiers={e.rateTiers} onChange={(rateTiers) => patch({ rateTiers })} />
@@ -305,8 +336,7 @@ export default function Commission() {
                         <span key={t.id}>
                           {tierRangeLabel(t)}:{' '}
                           <strong className={t.fromYear === 1 ? 'text-emerald-600' : 'text-slate-700'}>
-                            {formatCurrency(e.premiumAmount * (t.pct / 100))}
-                            {t.toYear !== t.fromYear ? '/yr' : ''}
+                            {tierCommissionLabel(e, t)}
                           </strong>
                         </span>
                       ))}

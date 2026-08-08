@@ -17,6 +17,7 @@ const PAYMENTS_PER_YEAR: Record<PremiumFrequency, number> = {
   Yearly: 1,
   'Half-Yearly': 2,
   Quarterly: 4,
+  'Bi-Monthly': 6,
   Monthly: 12,
 };
 

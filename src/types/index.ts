@@ -158,7 +158,8 @@ export interface CommissionEntry {
   clientId: UUID | null;
   clientName: string;
   product: string;
-  premiumAmount: number;
+  premiumAmount: number; // amount collected per payment (not annualized)
+  paymentFrequency: PremiumFrequency;
   rateTiers: CommissionRateTier[];
 }
 
@@ -301,7 +302,7 @@ export interface FundAllocation {
 export const PREMIUM_TYPES = ['Single', 'Regular'] as const;
 export type PremiumType = (typeof PREMIUM_TYPES)[number];
 
-export const PREMIUM_FREQUENCIES = ['Yearly', 'Half-Yearly', 'Quarterly', 'Monthly'] as const;
+export const PREMIUM_FREQUENCIES = ['Yearly', 'Half-Yearly', 'Quarterly', 'Bi-Monthly', 'Monthly'] as const;
 export type PremiumFrequency = (typeof PREMIUM_FREQUENCIES)[number];
 
 export interface WelcomeBonusTier {

@@ -39,6 +39,7 @@ const FREQUENCY_MONTHS: Record<PremiumFrequency, number> = {
   Yearly: 12,
   'Half-Yearly': 6,
   Quarterly: 3,
+  'Bi-Monthly': 2,
   Monthly: 1,
 };
 
