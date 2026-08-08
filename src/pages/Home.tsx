@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listClients } from '../db/clients';
 import { listAllTasks } from '../db/tasks';
 import { getSettings } from '../db/settings';
 import { listCalendarEvents } from '../db/calendarEvents';
 import { buildReminders } from '../lib/reminders';
+import { syncBirthdayTasks } from '../lib/birthdayTasks';
 import { formatDate } from '../lib/age';
 import { shareNameCard } from '../lib/nameCard';
-import { toDateStr, EventModal } from './Calendar';
+import { toDateStr, eventTimeLabel, EventModal } from './Calendar';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -17,6 +18,86 @@ const URGENCY_TONE = { overdue: 'red', soon: 'amber', upcoming: 'slate' } as con
 const KIND_ICON = { visit: '📅', premiumDue: '💳', renewal: '🔄', birthday: '🎂', task: '✅' } as const;
 const TYPE_ICON: Record<string, string> = { Appointment: '🤝', Meeting: '📋', Course: '🎓', Other: '📌' };
 const NOTIFY_DATE_KEY = 'alfred-last-notify-date';
+const ROW_HEIGHT = 56; // px per hour
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Hour-by-hour day planner: 00:00-23:00 rows with today's events (client appointments and any
+// personal blocks the advisor adds, e.g. "Gym 08:00-10:00") positioned and sized by their
+// actual start/end time, plus a live "now" marker.
+function DayTimeline({ events, onEventClick }: { events: CalendarEvent[]; onEventClick: (e: CalendarEvent) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const timedEvents = events.filter((e) => e.time);
+  const allDayEvents = events.filter((e) => !e.time);
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = Math.max(0, (nowMinutes / 60 - 1) * ROW_HEIGHT);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div>
+      {allDayEvents.length > 0 && (
+        <div className="mb-3 flex flex-col gap-2">
+          {allDayEvents.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => onEventClick(e)}
+              className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+            >
+              <span>{TYPE_ICON[e.type] ?? '📌'}</span>
+              {e.title} · All day
+            </button>
+          ))}
+        </div>
+      )}
+      <div ref={scrollRef} className="relative max-h-[420px] overflow-y-auto rounded-xl border border-slate-100">
+        <div className="relative" style={{ height: ROW_HEIGHT * 24 }}>
+          {Array.from({ length: 24 }, (_, h) => (
+            <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: h * ROW_HEIGHT }}>
+              <span className="absolute -top-2 left-1 bg-white px-1 text-[11px] text-slate-400">
+                {String(h).padStart(2, '0')}:00
+              </span>
+            </div>
+          ))}
+          {nowMinutes >= 0 && (
+            <div
+              className="absolute left-0 right-0 z-10 flex items-center gap-1"
+              style={{ top: (nowMinutes / 60) * ROW_HEIGHT }}
+            >
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <span className="h-px flex-1 bg-rose-400" />
+            </div>
+          )}
+          {timedEvents.map((e) => {
+            const start = timeToMinutes(e.time!);
+            const end = e.endTime ? timeToMinutes(e.endTime) : start + 60;
+            const top = (start / 60) * ROW_HEIGHT;
+            const height = Math.max(((end - start) / 60) * ROW_HEIGHT, 26);
+            return (
+              <button
+                key={e.id}
+                onClick={() => onEventClick(e)}
+                className="absolute left-14 right-2 overflow-hidden rounded-lg bg-indigo-100 px-2 py-1 text-left text-xs font-semibold text-indigo-700 hover:bg-indigo-200"
+                style={{ top, height }}
+              >
+                {TYPE_ICON[e.type] ?? '📌'} {e.title}
+                <div className="font-normal text-indigo-500">{eventTimeLabel(e)}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -28,6 +109,7 @@ export default function Home() {
   const [sharing, setSharing] = useState(false);
   const [shareMsg, setShareMsg] = useState('');
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
   );
@@ -36,10 +118,12 @@ export default function Home() {
 
   const load = async () => {
     const [clientList, tasks, s, events] = await Promise.all([listClients(), listAllTasks(), getSettings(), listCalendarEvents()]);
+    const createdBirthdayTasks = await syncBirthdayTasks(clientList, tasks);
+    const freshTasks = createdBirthdayTasks ? await listAllTasks() : tasks;
     setSettings(s);
     setClients(clientList);
-    setReminders(buildReminders(clientList, tasks, s));
-    setOpenTasks(tasks.filter((t: Task) => t.status === 'open').slice(0, 5));
+    setReminders(buildReminders(clientList, freshTasks, s));
+    setOpenTasks(freshTasks.filter((t: Task) => t.status === 'open').slice(0, 5));
     setTodayEvents(events.filter((e) => e.date === todayStr).sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')));
   };
 
@@ -122,17 +206,7 @@ export default function Home() {
         {todayEvents.length === 0 ? (
           <p className="text-slate-400">Nothing on the calendar today.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {todayEvents.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                <span className="text-xl">{TYPE_ICON[e.type] ?? '📌'}</span>
-                <div className="flex-1">
-                  <p className="font-medium text-slate-800">{e.title}</p>
-                  <p className="text-sm text-slate-400">{e.time ? e.time : 'All day'} · {e.type}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <DayTimeline events={todayEvents} onEventClick={setEditingEvent} />
         )}
       </Card>
 
@@ -180,16 +254,23 @@ export default function Home() {
       </Card>
 
       <EventModal
-        open={showAddEvent}
-        initial={null}
+        open={showAddEvent || !!editingEvent}
+        initial={editingEvent}
         defaultDate={todayStr}
         clients={clients}
-        onClose={() => setShowAddEvent(false)}
+        onClose={() => {
+          setShowAddEvent(false);
+          setEditingEvent(null);
+        }}
         onSaved={() => {
           setShowAddEvent(false);
+          setEditingEvent(null);
           load();
         }}
-        onDeleted={() => setShowAddEvent(false)}
+        onDeleted={() => {
+          setEditingEvent(null);
+          load();
+        }}
       />
     </div>
   );

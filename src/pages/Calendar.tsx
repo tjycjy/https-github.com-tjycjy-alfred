@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { DateInput } from '../components/ui/DateInput';
+import { sgHolidayOn } from '../lib/sgHolidays';
 import { EVENT_TYPES } from '../types';
 import type { CalendarEvent, Client } from '../types';
 
@@ -12,6 +13,11 @@ const TYPE_ICON: Record<string, string> = { Appointment: '🤝', Meeting: '📋'
 
 export function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function eventTimeLabel(e: CalendarEvent): string {
+  if (!e.time) return 'All day';
+  return e.endTime ? `${e.time} – ${e.endTime}` : e.time;
 }
 
 export default function CalendarPage() {
@@ -56,6 +62,7 @@ export default function CalendarPage() {
 
   const todayStr = toDateStr(new Date());
   const selectedEvents = (eventsByDate.get(selectedDate) ?? []).sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
+  const selectedHoliday = sgHolidayOn(selectedDate);
   const clientName = (id: string | null) => clients.find((c) => c.id === id)?.name ?? null;
 
   return (
@@ -93,18 +100,22 @@ export default function CalendarPage() {
             if (!d) return <div key={i} />;
             const dstr = toDateStr(d);
             const dayEvents = eventsByDate.get(dstr) ?? [];
+            const holiday = sgHolidayOn(dstr);
             const isToday = dstr === todayStr;
             const isSelected = dstr === selectedDate;
             return (
               <button
                 key={i}
                 onClick={() => setSelectedDate(dstr)}
+                title={holiday?.name}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-lg text-sm transition ${
                   isSelected
                     ? 'bg-indigo-600 font-bold text-white'
                     : isToday
                       ? 'bg-indigo-50 font-bold text-indigo-600'
-                      : 'text-slate-600 hover:bg-slate-50'
+                      : holiday
+                        ? 'bg-rose-50 font-semibold text-rose-600 hover:bg-rose-100'
+                        : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 {d.getDate()}
@@ -123,6 +134,11 @@ export default function CalendarPage() {
             ? 'Today'
             : new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
         </h3>
+        {selectedHoliday && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-600">
+            🇸🇬 {selectedHoliday.name} — Singapore Public Holiday
+          </div>
+        )}
         {selectedEvents.length === 0 ? (
           <p className="text-slate-400">No events on this day.</p>
         ) : (
@@ -137,7 +153,7 @@ export default function CalendarPage() {
                 <div className="flex-1">
                   <p className="font-medium text-slate-800">{e.title}</p>
                   <p className="text-sm text-slate-400">
-                    {e.time ? e.time : 'All day'} · {e.type}
+                    {eventTimeLabel(e)} · {e.type}
                     {e.clientId && clientName(e.clientId) && ` · ${clientName(e.clientId)}`}
                   </p>
                   {e.notes && <p className="text-sm text-slate-400">{e.notes}</p>}
@@ -192,6 +208,7 @@ export function EventModal({
   const [type, setType] = useState<CalendarEvent['type']>('Appointment');
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [notes, setNotes] = useState('');
   const [clientId, setClientId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -203,6 +220,7 @@ export function EventModal({
       setType(initial.type);
       setDate(initial.date);
       setTime(initial.time ?? '');
+      setEndTime(initial.endTime ?? '');
       setNotes(initial.notes);
       setClientId(initial.clientId ?? '');
     } else {
@@ -210,6 +228,7 @@ export function EventModal({
       setType('Appointment');
       setDate(defaultDate);
       setTime('');
+      setEndTime('');
       setNotes('');
       setClientId('');
     }
@@ -225,11 +244,12 @@ export function EventModal({
         type,
         date,
         time: time || null,
+        endTime: endTime || null,
         notes,
         clientId: clientId || null,
       });
     } else {
-      await createCalendarEvent({ title: title.trim(), type, date, time: time || null, notes, clientId: clientId || null });
+      await createCalendarEvent({ title: title.trim(), type, date, time: time || null, endTime: endTime || null, notes, clientId: clientId || null });
     }
     setSaving(false);
     onSaved();
@@ -266,13 +286,19 @@ export function EventModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Time (optional)</label>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input" />
+            <label className="mb-1 block text-sm font-medium text-slate-600">Date</label>
+            <DateInput value={date} onChange={setDate} />
           </div>
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">Date</label>
-          <DateInput value={date} onChange={setDate} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Start time (optional)</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">End time (optional)</label>
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input" disabled={!time} />
+          </div>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">Link to client (optional)</label>

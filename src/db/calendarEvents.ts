@@ -5,7 +5,9 @@ import type { CalendarEvent } from '../types';
 export async function listCalendarEvents(): Promise<CalendarEvent[]> {
   const db = await getDb();
   const all = await db.getAll('calendarEvents');
-  return all.sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? '')));
+  return all
+    .map((e) => ({ ...e, endTime: e.endTime ?? null }))
+    .sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? '')));
 }
 
 export async function createCalendarEvent(input: {
@@ -13,6 +15,7 @@ export async function createCalendarEvent(input: {
   type: CalendarEvent['type'];
   date: string;
   time?: string | null;
+  endTime?: string | null;
   notes?: string;
   clientId?: string | null;
 }): Promise<CalendarEvent> {
@@ -23,6 +26,7 @@ export async function createCalendarEvent(input: {
     type: input.type,
     date: input.date,
     time: input.time ?? null,
+    endTime: input.endTime ?? null,
     notes: input.notes ?? '',
     clientId: input.clientId ?? null,
     createdAt: nowIso(),

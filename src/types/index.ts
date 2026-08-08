@@ -376,6 +376,7 @@ export interface CalendarEvent {
   type: EventType;
   date: string; // yyyy-mm-dd
   time: string | null; // HH:mm
+  endTime: string | null; // HH:mm — optional, for events that span a range (e.g. 13:00-15:00)
   notes: string;
   clientId: UUID | null;
   createdAt: string;
