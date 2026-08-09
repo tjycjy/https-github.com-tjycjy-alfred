@@ -1,10 +1,16 @@
 import { formatDate } from '../../lib/age';
 
-// Native <input type="date"> always renders its visible text in the browser/OS locale
-// format (mm/dd/yyyy on most Windows/US-locale setups) — there is no cross-browser way to
-// override that from CSS or JS. So we keep the native input (for its picker, keyboard input,
-// and validation) but make its own text invisible and draw our own dd/mm/yyyy label on top;
-// clicks/typing still hit the real input underneath.
+// Two separate problems with native <input type="date">:
+//  1) it always renders its visible text in the browser/OS locale (mm/dd/yyyy on US-locale
+//     setups) — no cross-browser way to override that.
+//  2) on iOS Safari specifically, the control ignores CSS width/min-width and paints at its
+//     own fixed minimum width regardless of the box it's given — so even a shrink-to-fit fix
+//     (min-w-0) doesn't stop it overflowing into neighboring fields in a tight grid/flex row.
+// Fix for both: the native input is positioned absolutely (fully invisible, but still
+// tappable) so it's removed from normal layout flow entirely and can never affect the size
+// of its container or siblings, no matter how wide it insists on painting itself. A plain
+// div — ordinary block-level sizing, no native-control quirks — carries the actual layout
+// box and shows our own dd/mm/yyyy text.
 export function DateInput({
   value,
   onChange,
@@ -19,19 +25,19 @@ export function DateInput({
   disabled?: boolean;
 }) {
   return (
-    <div className={`relative min-w-0 w-full ${className}`}>
+    <div className={`relative w-full ${className}`}>
+      <div className={`input w-full ${disabled ? 'opacity-60' : ''}`}>
+        {value ? formatDate(value) : 'dd/mm/yyyy'}
+      </div>
       <input
         type="date"
         value={value}
         required={required}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="input w-full min-w-0 dark:[&::-webkit-calendar-picker-indicator]:invert disabled:opacity-60"
-        style={{ color: 'transparent', caretColor: 'transparent' }}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        aria-label="Date"
       />
-      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-800">
-        {value ? formatDate(value) : 'dd/mm/yyyy'}
-      </span>
     </div>
   );
 }
