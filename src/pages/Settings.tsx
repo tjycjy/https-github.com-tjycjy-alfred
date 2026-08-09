@@ -152,25 +152,14 @@ export default function Settings() {
 
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-bold text-slate-800">Defaults</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Visit cadence (months before overdue)</label>
-            <input
-              type="number"
-              value={settings.visitCadenceMonths}
-              onChange={(e) => setSettings({ ...settings, visitCadenceMonths: Number(e.target.value) })}
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Backup reminder (weeks)</label>
-            <input
-              type="number"
-              value={settings.backupReminderWeeks}
-              onChange={(e) => setSettings({ ...settings, backupReminderWeeks: Number(e.target.value) })}
-              className="input"
-            />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">Visit cadence (months before overdue)</label>
+          <input
+            type="number"
+            value={settings.visitCadenceMonths}
+            onChange={(e) => setSettings({ ...settings, visitCadenceMonths: Number(e.target.value) })}
+            className="input max-w-xs"
+          />
         </div>
       </Card>
 
@@ -268,10 +257,39 @@ export default function Settings() {
 
       <Card className="p-6">
         <h2 className="mb-2 text-lg font-bold text-slate-800">Data Backup</h2>
-        <p className="mb-4 text-slate-500">
-          All client data lives only on this device. Export regularly to back up or move to another iPad.
-          {settings.lastBackupAt && <span className="block text-sm text-slate-400">Last backup: {formatDateTime(settings.lastBackupAt)}</span>}
+        <p className="mb-2 text-slate-500">
+          All client data — profile settings, clients, meeting notes, PDFs, and voice recordings — lives only on this
+          device. Export regularly to back up, or to move everything to another iPad.
         </p>
+        <p className="mb-4 text-sm text-slate-400">
+          iPad has no way for a website to remember a folder and save into it automatically — each export opens
+          the normal "Save to Files" screen. Pick the <span className="font-semibold">same folder every time</span>{' '}
+          and it'll stay easy to find.
+          {settings.lastBackupAt && <span className="block">Last backup: {formatDateTime(settings.lastBackupAt)}</span>}
+        </p>
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Backup folder (reminder note)</label>
+            <input
+              value={settings.backupFolderLabel}
+              onChange={(e) => setSettings({ ...settings, backupFolderLabel: e.target.value })}
+              className="input"
+              placeholder="e.g. On My iPad / A.L.F.R.E.D. Backups"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Remind me to back up every</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={settings.backupReminderWeeks}
+                onChange={(e) => setSettings({ ...settings, backupReminderWeeks: Number(e.target.value) })}
+                className="input"
+              />
+              <span className="text-sm text-slate-500 whitespace-nowrap">week(s)</span>
+            </div>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-3">
           <Button onClick={handleExport}>⬇ Export All Data (JSON)</Button>
           <input

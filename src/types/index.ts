@@ -200,6 +200,10 @@ export interface AppSettings {
   visitCadenceMonths: number;
   backupReminderWeeks: number;
   lastBackupAt: string | null;
+  // iOS Safari has no API to remember an actual folder handle between sessions — this is just
+  // a label the app displays next to the Export button so the user picks the same Files folder
+  // every time, instead of a real enforced destination.
+  backupFolderLabel: string;
   onboardingComplete: boolean;
   summaryEndpointUrl: string | null;
   summaryApiKey: string | null;

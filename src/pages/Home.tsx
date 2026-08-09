@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listClients } from '../db/clients';
 import { listAllTasks } from '../db/tasks';
-import { getSettings } from '../db/settings';
+import { getSettings, saveSettings } from '../db/settings';
 import { listCalendarEvents } from '../db/calendarEvents';
+import { exportAllData, downloadExport } from '../db/exportImport';
 import { buildReminders } from '../lib/reminders';
 import { syncBirthdayTasks } from '../lib/birthdayTasks';
 import { formatDate } from '../lib/age';
@@ -110,6 +111,7 @@ export default function Home() {
   const [shareMsg, setShareMsg] = useState('');
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
   );
@@ -147,6 +149,23 @@ export default function Home() {
     setNotifyPermission(perm);
   };
 
+  const daysSinceBackup = settings?.lastBackupAt
+    ? Math.floor((Date.now() - new Date(settings.lastBackupAt).getTime()) / 86400000)
+    : null;
+  const backupOverdueDays = (settings?.backupReminderWeeks ?? 2) * 7;
+  const backupOverdue = settings !== null && (daysSinceBackup === null || daysSinceBackup >= backupOverdueDays);
+
+  const handleBackupNow = async () => {
+    if (!settings) return;
+    setBackingUp(true);
+    const bundle = await exportAllData();
+    downloadExport(bundle);
+    const updated = { ...settings, lastBackupAt: new Date().toISOString() };
+    await saveSettings(updated);
+    setSettings(updated);
+    setBackingUp(false);
+  };
+
   const handleShareNameCard = async () => {
     if (!settings?.namecard) return;
     setSharing(true);
@@ -180,6 +199,21 @@ export default function Home() {
         </div>
         {shareMsg && <p className="text-sm text-amber-600">{shareMsg}</p>}
       </Card>
+
+      {backupOverdue && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50 p-4">
+          <div>
+            <p className="font-semibold text-amber-800">
+              💾 {daysSinceBackup === null ? "You haven't backed up yet" : `Last backup was ${daysSinceBackup} day${daysSinceBackup === 1 ? '' : 's'} ago`}
+            </p>
+            <p className="text-sm text-amber-700">
+              Back up now so you never lose client data.
+              {settings?.backupFolderLabel && ` Save to: ${settings.backupFolderLabel}`}
+            </p>
+          </div>
+          <Button onClick={handleBackupNow} disabled={backingUp}>{backingUp ? 'Backing up…' : 'Back up now'}</Button>
+        </Card>
+      )}
 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">

@@ -14,11 +14,20 @@ import type {
   FinancialProfile,
   CalendarEvent,
   Prospect,
+  AppSettings,
+  Brochure,
+  MeetingRecording,
+  KnowledgeDoc,
 } from '../types';
 
+type ExportedBrochure = Omit<Brochure, 'file'> & { file: string };
+type ExportedRecording = Omit<MeetingRecording, 'audio'> & { audio: string };
+type ExportedKnowledgeDoc = Omit<KnowledgeDoc, 'file'> & { file: string };
+
 export interface ExportBundle {
-  version: 1;
+  version: 2;
   exportedAt: string;
+  settings: AppSettings | null;
   clients: Client[];
   households: Household[];
   meetings: MeetingLogEntry[];
@@ -33,8 +42,12 @@ export interface ExportBundle {
   financialProfiles: FinancialProfile[];
   calendarEvents: CalendarEvent[];
   prospects: Prospect[];
+  brochures: ExportedBrochure[];
+  recordings: ExportedRecording[];
+  knowledgeDocs: ExportedKnowledgeDoc[];
 }
 
+// Plain JSON-serializable stores — copied across as-is.
 const STORE_NAMES = [
   'clients',
   'households',
@@ -52,19 +65,44 @@ const STORE_NAMES = [
   'prospects',
 ] as const;
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const res = await fetch(dataUrl);
+  return res.blob();
+}
+
 export async function exportAllData(): Promise<ExportBundle> {
   const db = await getDb();
   const bundle: Partial<ExportBundle> = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
+    settings: (await db.get('settings', 'settings')) ?? null,
   };
   for (const store of STORE_NAMES) {
     (bundle as Record<string, unknown>)[store] = await db.getAll(store);
   }
+
+  const [brochures, recordings, knowledgeDocs] = await Promise.all([
+    db.getAll('brochures'),
+    db.getAll('recordings'),
+    db.getAll('knowledgeDocs'),
+  ]);
+  bundle.brochures = await Promise.all(brochures.map(async (b) => ({ ...b, file: await blobToDataUrl(b.file) })));
+  bundle.recordings = await Promise.all(recordings.map(async (r) => ({ ...r, audio: await blobToDataUrl(r.audio) })));
+  bundle.knowledgeDocs = await Promise.all(knowledgeDocs.map(async (k) => ({ ...k, file: await blobToDataUrl(k.file) })));
+
   return bundle as ExportBundle;
 }
 
-export function downloadExport(bundle: ExportBundle, filenamePrefix = 'fa-dashboard-backup'): void {
+export function downloadExport(bundle: ExportBundle, filenamePrefix = 'alfred-backup'): void {
   const json = JSON.stringify(bundle, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -100,6 +138,11 @@ export type ImportMode = 'merge' | 'replace';
 
 export async function importData(bundle: ExportBundle, mode: ImportMode = 'merge'): Promise<void> {
   const db = await getDb();
+
+  if (bundle.settings) {
+    await db.put('settings', bundle.settings);
+  }
+
   for (const store of STORE_NAMES) {
     const tx = db.transaction(store, 'readwrite');
     if (mode === 'replace') {
@@ -110,6 +153,26 @@ export async function importData(bundle: ExportBundle, mode: ImportMode = 'merge
       await tx.store.put(record as never);
     }
     await tx.done;
+  }
+
+  const blobStores: { name: 'brochures' | 'recordings' | 'knowledgeDocs'; field: 'file' | 'audio' }[] = [
+    { name: 'brochures', field: 'file' },
+    { name: 'recordings', field: 'audio' },
+    { name: 'knowledgeDocs', field: 'file' },
+  ];
+  for (const { name, field } of blobStores) {
+    const records = (bundle[name] as Record<string, unknown>[] | undefined) ?? [];
+    if (mode === 'replace') {
+      const tx = db.transaction(name, 'readwrite');
+      await tx.store.clear();
+      await tx.done;
+    }
+    for (const record of records) {
+      const dataUrl = record[field];
+      if (typeof dataUrl !== 'string') continue;
+      const blob = await dataUrlToBlob(dataUrl);
+      await db.put(name, { ...record, [field]: blob } as never);
+    }
   }
 }
 

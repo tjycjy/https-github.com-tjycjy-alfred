@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   visitCadenceMonths: 6,
   backupReminderWeeks: 2,
   lastBackupAt: null,
+  backupFolderLabel: '',
   onboardingComplete: false,
   summaryEndpointUrl: null,
   summaryApiKey: null,

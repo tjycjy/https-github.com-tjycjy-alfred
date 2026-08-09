@@ -5,8 +5,8 @@ import { Button } from '../ui/Button';
 import { Logo } from '../ui/Logo';
 import { PinPad } from '../lock/PinPad';
 
-type Step = 'welcome' | 'profile' | 'credentials' | 'security' | 'done';
-const STEP_ORDER: Step[] = ['welcome', 'profile', 'credentials', 'security', 'done'];
+type Step = 'welcome' | 'profile' | 'credentials' | 'security' | 'backup' | 'done';
+const STEP_ORDER: Step[] = ['welcome', 'profile', 'credentials', 'security', 'backup', 'done'];
 
 export function OnboardingFlow() {
   const { completeOnboarding, setupPin, setupBiometric, biometricSupported, pinConfigured, biometricConfigured } = useAuth();
@@ -18,6 +18,8 @@ export function OnboardingFlow() {
   const [agencyName, setAgencyName] = useState('');
   const [contact, setContact] = useState('');
   const [licenses, setLicenses] = useState('');
+  const [backupFolderLabel, setBackupFolderLabel] = useState('');
+  const [backupReminderWeeks, setBackupReminderWeeks] = useState(2);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -43,6 +45,14 @@ export function OnboardingFlow() {
     next();
   };
 
+  const saveBackupStep = async () => {
+    const settings = await getSettings();
+    settings.backupFolderLabel = backupFolderLabel.trim();
+    settings.backupReminderWeeks = backupReminderWeeks;
+    await saveSettings(settings);
+    next();
+  };
+
   const handlePhoto = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => setPhoto(reader.result as string);
@@ -53,7 +63,7 @@ export function OnboardingFlow() {
     <div className="fixed inset-0 z-[90] flex flex-col bg-slate-50">
       <div className="flex items-center justify-between px-6 pt-6">
         <div className="flex gap-1.5">
-          {STEP_ORDER.slice(0, 4).map((s, i) => (
+          {STEP_ORDER.slice(0, 5).map((s, i) => (
             <div key={s} className={`h-1.5 w-8 rounded-full ${i <= stepIndex ? 'bg-indigo-600' : 'bg-slate-200'}`} />
           ))}
         </div>
@@ -147,6 +157,45 @@ export function OnboardingFlow() {
             setupBiometric={() => setupBiometric(advisorName)}
             onDone={next}
           />
+        )}
+
+        {step === 'backup' && (
+          <div className="flex w-full max-w-md flex-col gap-4">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-slate-800">Back Up Your Data</h2>
+              <p className="text-slate-500">
+                Everything you enter lives only on this iPad. iPad doesn't let a website remember a folder and save
+                into it automatically, so backing up means tapping <span className="font-semibold">Export</span> in
+                Settings — that opens the normal "Save to Files" screen.
+              </p>
+            </div>
+            <div className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-700">
+              Pick the same folder every time you export (e.g. "On My iPad → A.L.F.R.E.D. Backups") so it's always
+              easy to find. A.L.F.R.E.D. will remind you when it's time.
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Backup folder (reminder note)</label>
+              <input
+                value={backupFolderLabel}
+                onChange={(e) => setBackupFolderLabel(e.target.value)}
+                className="input"
+                placeholder="e.g. On My iPad / A.L.F.R.E.D. Backups"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Remind me to back up every</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={backupReminderWeeks}
+                  onChange={(e) => setBackupReminderWeeks(Number(e.target.value))}
+                  className="input max-w-[100px]"
+                />
+                <span className="text-sm text-slate-500">week(s)</span>
+              </div>
+            </div>
+            <Button onClick={saveBackupStep}>Continue</Button>
+          </div>
         )}
 
         {step === 'done' && (
