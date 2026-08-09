@@ -7,7 +7,7 @@ import { getPortfolioForClient } from '../../db/portfolios';
 import { listFunds } from '../../db/funds';
 import { newId } from '../../lib/id';
 import { calcAge, formatDate } from '../../lib/age';
-import { calcCpfContribution, CPF_RATES_NOTE } from '../../lib/calculators/cpf';
+import { calcCpfContribution, CPF_RATES_NOTE, CPF_RETIREMENT_SUMS_2026 } from '../../lib/calculators/cpf';
 import { projectHolding, projectPortfolio } from '../../lib/investmentProjection';
 import { projectCashflow } from '../../lib/calculators/cashflowProjection';
 import { computeGap, combineCoverage, formatCurrency } from '../../lib/coverageGap';
@@ -15,6 +15,7 @@ import { computeHoldingLiveValue, type HoldingLiveValue } from '../../lib/invest
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { SliderInput } from '../../components/ui/SliderInput';
+import { ProgressBar } from '../../components/ui/ProgressBar';
 import { DateInput } from '../../components/ui/DateInput';
 import { useClientTab } from './ClientTabContext';
 import {
@@ -452,6 +453,9 @@ function CpfSection({
 }) {
   const breakdown = currentAge !== null && totalMonthlyIncome > 0 ? calcCpfContribution(totalMonthlyIncome, currentAge) : null;
   const totalCpf = profile.cpfOA + profile.cpfSA + profile.cpfMA + profile.cpfRA;
+  // MediSave is earmarked for healthcare, not retirement income — OA + SA + RA is what
+  // actually counts toward (or eventually funds) the Retirement Sum at age 55.
+  const retirementSavings = profile.cpfOA + profile.cpfSA + profile.cpfRA;
 
   const updateBalance = (field: 'cpfOA' | 'cpfSA' | 'cpfMA' | 'cpfRA', value: number) => setProfile({ ...profile, [field]: value });
 
@@ -479,6 +483,38 @@ function CpfSection({
           </div>
         </div>
         <p className="mt-3 text-right text-sm font-semibold text-slate-600">Total CPF: {formatCurrency(totalCpf)}</p>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="mb-1 font-bold text-slate-800">Retirement Sum Progress</h3>
+        <p className="mb-4 text-sm text-slate-500">
+          Based on OA + SA + RA ({formatCurrency(retirementSavings)}) against the 2026 CPF Board benchmarks.
+        </p>
+        <div className="flex flex-col gap-4">
+          {(
+            [
+              ['Basic (BRS)', CPF_RETIREMENT_SUMS_2026.basic],
+              ['Full (FRS)', CPF_RETIREMENT_SUMS_2026.full],
+              ['Enhanced (ERS)', CPF_RETIREMENT_SUMS_2026.enhanced],
+            ] as const
+          ).map(([label, target]) => {
+            const shortfall = Math.max(0, target - retirementSavings);
+            const ratio = target > 0 ? retirementSavings / target : 0;
+            const status = ratio >= 1 ? 'met' : ratio >= 0.5 ? 'amber' : 'red';
+            return (
+              <div key={label}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-slate-700">{label}</span>
+                  <span className="text-slate-400">
+                    {formatCurrency(Math.min(retirementSavings, target))} / {formatCurrency(target)}
+                    {shortfall > 0 && <span className="ml-2 font-semibold text-rose-600">short {formatCurrency(shortfall)}</span>}
+                  </span>
+                </div>
+                <ProgressBar ratio={ratio} status={status} />
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       <Card className="p-6">

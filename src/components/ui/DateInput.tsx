@@ -19,14 +19,14 @@ export function DateInput({
   disabled?: boolean;
 }) {
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative min-w-0 w-full ${className}`}>
       <input
         type="date"
         value={value}
         required={required}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="input w-full dark:[&::-webkit-calendar-picker-indicator]:invert disabled:opacity-60"
+        className="input w-full min-w-0 dark:[&::-webkit-calendar-picker-indicator]:invert disabled:opacity-60"
         style={{ color: 'transparent', caretColor: 'transparent' }}
       />
       <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-800">
