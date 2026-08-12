@@ -49,6 +49,7 @@ export default function FundTools() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'unavailable'>('idle');
+  const [bundleUpdatedAt, setBundleUpdatedAt] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -60,14 +61,20 @@ export default function FundTools() {
     setLoading(false);
   };
 
+  const refreshFunds = async () => {
+    setSyncStatus('syncing');
+    const result = await syncBundledFundPrices();
+    setSyncStatus(result && result.synced > 0 ? 'synced' : 'unavailable');
+    setBundleUpdatedAt(result?.updatedAt ?? null);
+    if (result && result.synced > 0) await load();
+  };
+
   useEffect(() => {
     (async () => {
       await load();
-      setSyncStatus('syncing');
-      const result = await syncBundledFundPrices();
-      setSyncStatus(result && result.synced > 0 ? 'synced' : 'unavailable');
-      if (result && result.synced > 0) await load();
+      await refreshFunds();
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const classes = useMemo(() => {
@@ -137,11 +144,21 @@ export default function FundTools() {
           </p>
           <p className="mt-1 text-xs text-slate-400">
             {syncStatus === 'syncing' && '🔄 Syncing GreatLink fund prices…'}
-            {syncStatus === 'synced' && '✓ GreatLink funds auto-synced from Great Eastern’s public price feed.'}
-            {syncStatus === 'unavailable' && 'Auto-sync not available offline — showing your imported/cached data.'}
+            {syncStatus === 'synced' &&
+              `✓ GreatLink funds auto-synced from Great Eastern’s public price feed.${bundleUpdatedAt ? ` App data bundle built ${formatDate(bundleUpdatedAt)}.` : ''}`}
+            {syncStatus === 'unavailable' && 'Auto-sync not available offline, or the app hasn’t been redeployed with fresh data yet — showing your imported/cached data.'}
           </p>
         </div>
-        <Button onClick={() => setShowImport(true)}>+ Import Data</Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshFunds}
+            disabled={syncStatus === 'syncing'}
+            className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+          >
+            {syncStatus === 'syncing' ? '🔄 Refreshing…' : '🔄 Refresh'}
+          </button>
+          <Button onClick={() => setShowImport(true)}>+ Import Data</Button>
+        </div>
       </div>
 
       <Card className="p-4">

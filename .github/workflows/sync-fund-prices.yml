@@ -12,6 +12,11 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Both scheduled runs to date hung on the Vercel deploy step and were silently killed by
+    # GitHub's 6-hour default job timeout, so the site never actually redeployed with fresh
+    # data despite the fetch+commit steps succeeding every time. Bound the job so a hang fails
+    # fast and shows up as a red X instead of burning hours unnoticed.
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,12 +60,23 @@ jobs:
       - name: Deploy to Vercel production
         if: steps.diff.outputs.changed == 'true'
         id: deploy
+        timeout-minutes: 8
         run: |
-          OUTPUT=$(vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
+          OUTPUT=$(timeout 450 vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
+          STATUS=$?
           echo "$OUTPUT"
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::vercel deploy exited with status $STATUS (timed out or failed) — see output above"
+            exit $STATUS
+          fi
           URL=$(echo "$OUTPUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+          if [ -z "$URL" ]; then
+            echo "::error::Could not find a deployment URL in vercel's output"
+            exit 1
+          fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Point alfred-ge.vercel.app at the new deployment
         if: steps.diff.outputs.changed == 'true'
-        run: vercel alias set "${{ steps.deploy.outputs.url }}" alfred-ge.vercel.app --token=${{ secrets.VERCEL_TOKEN }}
+        timeout-minutes: 3
+        run: timeout 120 vercel alias set "${{ steps.deploy.outputs.url }}" alfred-ge.vercel.app --token=${{ secrets.VERCEL_TOKEN }}
