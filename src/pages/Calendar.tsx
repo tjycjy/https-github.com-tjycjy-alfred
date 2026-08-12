@@ -146,18 +146,29 @@ export default function CalendarPage() {
             {selectedEvents.map((e) => (
               <div
                 key={e.id}
-                onClick={() => setEditing(e)}
-                className="flex cursor-pointer items-center gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"
+                className={`flex items-center gap-3 rounded-xl p-3 ${e.completed ? 'bg-slate-50' : 'bg-slate-50 hover:bg-slate-100'}`}
               >
-                <span className="text-xl">{TYPE_ICON[e.type] ?? '📌'}</span>
-                <div className="flex-1">
-                  <p className="font-medium text-slate-800">{e.title}</p>
-                  <p className="text-sm text-slate-400">
-                    {eventTimeLabel(e)} · {e.type}
-                    {e.clientId && clientName(e.clientId) && ` · ${clientName(e.clientId)}`}
-                  </p>
-                  {e.notes && <p className="text-sm text-slate-400">{e.notes}</p>}
-                </div>
+                <input
+                  type="checkbox"
+                  checked={e.completed}
+                  onChange={async () => {
+                    await updateCalendarEvent({ ...e, completed: !e.completed });
+                    load();
+                  }}
+                  className="h-4 w-4 shrink-0 accent-indigo-600"
+                  aria-label="Mark complete"
+                />
+                <button onClick={() => setEditing(e)} className="flex flex-1 cursor-pointer items-start gap-3 text-left">
+                  <span className="text-xl">{TYPE_ICON[e.type] ?? '📌'}</span>
+                  <div className="flex-1">
+                    <p className={`font-medium ${e.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{e.title}</p>
+                    <p className="text-sm text-slate-400">
+                      {eventTimeLabel(e)} · {e.type}
+                      {e.clientId && clientName(e.clientId) && ` · ${clientName(e.clientId)}`}
+                    </p>
+                    {e.notes && <p className="text-sm text-slate-400">{e.notes}</p>}
+                  </div>
+                </button>
               </div>
             ))}
           </div>

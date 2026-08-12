@@ -125,7 +125,6 @@ export interface SavingsGoal {
 export interface FactFind {
   id: UUID;
   clientId: UUID;
-  income: number | null;
   dependants: number | null;
   liabilities: LiabilityItem[];
   goals: string;
@@ -384,6 +383,7 @@ export interface CalendarEvent {
   notes: string;
   clientId: UUID | null;
   createdAt: string;
+  completed: boolean;
 }
 
 export const PROSPECT_STATUSES = ['New', 'Contacted', 'Meeting Booked', 'Proposal Sent', 'Not Interested', 'Converted'] as const;

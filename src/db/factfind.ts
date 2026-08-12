@@ -24,7 +24,6 @@ export async function getFactFindForClient(clientId: string): Promise<FactFind> 
   const factFind: FactFind = {
     id: newId(),
     clientId,
-    income: null,
     dependants: null,
     liabilities: [],
     goals: '',

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getFactFindForClient, saveFactFind } from '../../db/factfind';
+import { getFinancialProfile } from '../../db/financialProfiles';
 import { newId } from '../../lib/id';
 import { calcAge } from '../../lib/age';
 import { retirementNestEgg, requiredMonthlyContribution } from '../../lib/calculators/finance';
@@ -16,11 +18,13 @@ const GOAL_PRESETS = ['Car', "Children's Education", 'Marriage / Wedding', 'Hous
 export default function FactFindTab() {
   const { client } = useClientTab();
   const [factFind, setFactFind] = useState<FactFind | null>(null);
+  const [monthlyIncome, setMonthlyIncome] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     getFactFindForClient(client.id).then(setFactFind);
+    getFinancialProfile(client.id).then((p) => setMonthlyIncome(p.incomeItems.reduce((s, i) => s + i.amount, 0)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
@@ -58,12 +62,12 @@ export default function FactFindTab() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Monthly income (SGD)</label>
-            <input
-              type="number"
-              value={factFind.income ?? ''}
-              onChange={(e) => setFactFind({ ...factFind, income: e.target.value === '' ? null : Number(e.target.value) })}
-              className="input"
-            />
+            <div className="input flex items-center justify-between bg-slate-50 text-slate-700">
+              <span>{monthlyIncome !== null ? formatCurrency(monthlyIncome) : '—'}</span>
+              <Link to="../financial-health?section=cashflow" className="text-xs font-semibold text-indigo-600">
+                Edit in Financial Health →
+              </Link>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Number of dependants</label>

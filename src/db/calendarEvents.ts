@@ -6,7 +6,7 @@ export async function listCalendarEvents(): Promise<CalendarEvent[]> {
   const db = await getDb();
   const all = await db.getAll('calendarEvents');
   return all
-    .map((e) => ({ ...e, endTime: e.endTime ?? null }))
+    .map((e) => ({ ...e, endTime: e.endTime ?? null, completed: e.completed ?? false }))
     .sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? '')));
 }
 
@@ -30,6 +30,7 @@ export async function createCalendarEvent(input: {
     notes: input.notes ?? '',
     clientId: input.clientId ?? null,
     createdAt: nowIso(),
+    completed: false,
   };
   await db.put('calendarEvents', event);
   return event;

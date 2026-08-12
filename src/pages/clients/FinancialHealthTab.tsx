@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getFinancialProfile, saveFinancialProfile } from '../../db/financialProfiles';
 import { getFactFindForClient } from '../../db/factfind';
 import { getPortfolioForClient } from '../../db/portfolios';
@@ -8,6 +8,7 @@ import { listFunds } from '../../db/funds';
 import { newId } from '../../lib/id';
 import { calcAge, formatDate } from '../../lib/age';
 import { calcCpfContribution, CPF_RATES_NOTE, CPF_RETIREMENT_SUMS_2026 } from '../../lib/calculators/cpf';
+import { retirementNestEgg } from '../../lib/calculators/finance';
 import { projectHolding, projectPortfolio } from '../../lib/investmentProjection';
 import { projectCashflow } from '../../lib/calculators/cashflowProjection';
 import { computeGap, combineCoverage, formatCurrency } from '../../lib/coverageGap';
@@ -46,12 +47,18 @@ const SECTIONS = [
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 
+function isSectionId(v: string | null): v is SectionId {
+  return SECTIONS.some((s) => s.id === v);
+}
+
 export default function FinancialHealthTab() {
   const { client } = useClientTab();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<FinancialProfile | null>(null);
   const [factFind, setFactFind] = useState<FactFind | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [section, setSection] = useState<SectionId>('overview');
+  const requestedSection = searchParams.get('section');
+  const [section, setSection] = useState<SectionId>(isSectionId(requestedSection) ? requestedSection : 'overview');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,6 +158,7 @@ export default function FinancialHealthTab() {
           netWorth={netWorth}
           overallGap={overallGap}
           factFind={factFind}
+          currentAge={currentAge}
         />
       )}
       {section === 'cashflow' && <CashflowSection profile={profile} setProfile={setProfile} />}
@@ -246,6 +254,7 @@ function OverviewSection({
   netWorth,
   overallGap,
   factFind,
+  currentAge,
 }: {
   savingsRatePct: number;
   liabilitiesToIncomePct: number;
@@ -253,11 +262,26 @@ function OverviewSection({
   netWorth: number;
   overallGap: { ratio: number; status: 'met' | 'amber' | 'red' };
   factFind: FactFind;
+  currentAge: number | null;
 }) {
   const savingsStatus = savingsRatePct >= 20 ? 'good' : savingsRatePct >= 10 ? 'warn' : 'bad';
   const liabStatus = liabilitiesToIncomePct <= 100 ? 'good' : liabilitiesToIncomePct <= 300 ? 'warn' : 'bad';
   const efStatus = emergencyFundMonths >= 6 ? 'good' : emergencyFundMonths >= 3 ? 'warn' : 'bad';
   const insuranceStatus = overallGap.status === 'met' ? 'good' : overallGap.status === 'amber' ? 'warn' : 'bad';
+
+  const goal = factFind.retirementGoal;
+  const yearsInRetirement = Math.max(0, (goal.endAge ?? 0) - (goal.startAge ?? 0));
+  const yearsToRetirement = currentAge !== null ? Math.max(0, (goal.startAge ?? 0) - currentAge) : 0;
+  const requiredNestEgg =
+    goal.desiredMonthlyIncome && yearsInRetirement > 0
+      ? retirementNestEgg(
+          goal.desiredMonthlyIncome,
+          yearsInRetirement,
+          goal.returnDuringRetirementPct,
+          goal.adjustForInflation ? goal.inflationPct : 0,
+          yearsToRetirement,
+        )
+      : 0;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -274,10 +298,19 @@ function OverviewSection({
       </Card>
       <Card className="p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Goals & Milestones</p>
-        <p className="mt-1 text-sm text-slate-600">
-          {factFind.savingsGoals.length} savings goal{factFind.savingsGoals.length === 1 ? '' : 's'} · retirement goal{' '}
-          {factFind.retirementGoal.desiredMonthlyIncome ? 'set' : 'not set'}
-        </p>
+        {goal.desiredMonthlyIncome ? (
+          <>
+            <p className="mt-1 text-2xl font-bold text-slate-800">{formatCurrency(Math.round(requiredNestEgg))}</p>
+            <p className="text-xs text-slate-400">
+              required at retirement for {formatCurrency(goal.desiredMonthlyIncome)}/mo · {factFind.savingsGoals.length} savings goal
+              {factFind.savingsGoals.length === 1 ? '' : 's'}
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-slate-600">
+            {factFind.savingsGoals.length} savings goal{factFind.savingsGoals.length === 1 ? '' : 's'} · retirement goal not set
+          </p>
+        )}
         <Link to="../fact-find" className="mt-2 inline-block text-xs font-semibold text-indigo-600">View Fact-Find →</Link>
       </Card>
     </div>

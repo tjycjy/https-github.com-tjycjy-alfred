@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listClients } from '../db/clients';
-import { listAllTasks } from '../db/tasks';
+import { listClients, touchLastVisit } from '../db/clients';
+import { listAllTasks, listTasksForClient, setTaskStatus } from '../db/tasks';
 import { getSettings, saveSettings } from '../db/settings';
-import { listCalendarEvents } from '../db/calendarEvents';
+import { listCalendarEvents, updateCalendarEvent } from '../db/calendarEvents';
 import { exportAllData, downloadExport } from '../db/exportImport';
 import { buildReminders } from '../lib/reminders';
 import { syncBirthdayTasks } from '../lib/birthdayTasks';
@@ -29,7 +29,15 @@ function timeToMinutes(t: string): number {
 // Hour-by-hour day planner: 00:00-23:00 rows with today's events (client appointments and any
 // personal blocks the advisor adds, e.g. "Gym 08:00-10:00") positioned and sized by their
 // actual start/end time, plus a live "now" marker.
-function DayTimeline({ events, onEventClick }: { events: CalendarEvent[]; onEventClick: (e: CalendarEvent) => void }) {
+function DayTimeline({
+  events,
+  onEventClick,
+  onToggleComplete,
+}: {
+  events: CalendarEvent[];
+  onEventClick: (e: CalendarEvent) => void;
+  onToggleComplete: (e: CalendarEvent) => void;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timedEvents = events.filter((e) => e.time);
   const allDayEvents = events.filter((e) => !e.time);
@@ -48,14 +56,24 @@ function DayTimeline({ events, onEventClick }: { events: CalendarEvent[]; onEven
       {allDayEvents.length > 0 && (
         <div className="mb-3 flex flex-col gap-2">
           {allDayEvents.map((e) => (
-            <button
+            <div
               key={e.id}
-              onClick={() => onEventClick(e)}
-              className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                e.completed ? 'bg-slate-100 text-slate-400' : 'bg-indigo-50 text-indigo-700'
+              }`}
             >
-              <span>{TYPE_ICON[e.type] ?? '📌'}</span>
-              {e.title} · All day
-            </button>
+              <input
+                type="checkbox"
+                checked={e.completed}
+                onChange={() => onToggleComplete(e)}
+                onClick={(ev) => ev.stopPropagation()}
+                className="h-4 w-4 shrink-0 accent-indigo-600"
+                aria-label="Mark complete"
+              />
+              <button onClick={() => onEventClick(e)} className={`flex-1 text-left hover:underline ${e.completed ? 'line-through' : ''}`}>
+                <span>{TYPE_ICON[e.type] ?? '📌'}</span> {e.title} · All day
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -83,15 +101,25 @@ function DayTimeline({ events, onEventClick }: { events: CalendarEvent[]; onEven
             const top = (start / 60) * ROW_HEIGHT;
             const height = Math.max(((end - start) / 60) * ROW_HEIGHT, 26);
             return (
-              <button
+              <div
                 key={e.id}
-                onClick={() => onEventClick(e)}
-                className="absolute left-14 right-2 overflow-hidden rounded-lg bg-indigo-100 px-2 py-1 text-left text-xs font-semibold text-indigo-700 hover:bg-indigo-200"
+                className={`absolute left-14 right-2 flex items-start gap-1.5 overflow-hidden rounded-lg px-2 py-1 text-xs font-semibold ${
+                  e.completed ? 'bg-slate-100 text-slate-400' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                }`}
                 style={{ top, height }}
               >
-                {TYPE_ICON[e.type] ?? '📌'} {e.title}
-                <div className="font-normal text-indigo-500">{eventTimeLabel(e)}</div>
-              </button>
+                <input
+                  type="checkbox"
+                  checked={e.completed}
+                  onChange={() => onToggleComplete(e)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-indigo-600"
+                  aria-label="Mark complete"
+                />
+                <button onClick={() => onEventClick(e)} className={`flex-1 overflow-hidden text-left ${e.completed ? 'line-through' : ''}`}>
+                  {TYPE_ICON[e.type] ?? '📌'} {e.title}
+                  <div className={`font-normal ${e.completed ? 'text-slate-400' : 'text-indigo-500'}`}>{eventTimeLabel(e)}</div>
+                </button>
+              </div>
             );
           })}
         </div>
@@ -164,6 +192,25 @@ export default function Home() {
     await saveSettings(updated);
     setSettings(updated);
     setBackingUp(false);
+  };
+
+  const completeReminder = async (r: ReminderItem) => {
+    if (r.kind === 'task') {
+      const taskId = r.id.replace(/^task-/, '');
+      await setTaskStatus(taskId, 'done');
+    } else if (r.kind === 'visit' && r.clientId) {
+      await touchLastVisit(r.clientId, new Date().toISOString());
+    } else if (r.kind === 'birthday' && r.clientId) {
+      const clientTasks = await listTasksForClient(r.clientId);
+      const match = clientTasks.find((t) => t.status === 'open' && t.description.startsWith('🎂 Wish'));
+      if (match) await setTaskStatus(match.id, 'done');
+    }
+    await load();
+  };
+
+  const toggleEventComplete = async (e: CalendarEvent) => {
+    await updateCalendarEvent({ ...e, completed: !e.completed });
+    await load();
   };
 
   const handleShareNameCard = async () => {
@@ -240,7 +287,7 @@ export default function Home() {
         {todayEvents.length === 0 ? (
           <p className="text-slate-400">Nothing on the calendar today.</p>
         ) : (
-          <DayTimeline events={todayEvents} onEventClick={setEditingEvent} />
+          <DayTimeline events={todayEvents} onEventClick={setEditingEvent} onToggleComplete={toggleEventComplete} />
         )}
       </Card>
 
@@ -262,6 +309,15 @@ export default function Home() {
                   <p className="text-sm text-slate-400">{r.detail}</p>
                 </div>
                 <Badge tone={URGENCY_TONE[r.urgency]}>{r.urgency}</Badge>
+                <button
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    completeReminder(r);
+                  }}
+                  className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-100"
+                >
+                  ✓ Done
+                </button>
               </div>
             ))}
           </div>
@@ -278,9 +334,20 @@ export default function Home() {
         ) : (
           <div className="flex flex-col gap-2">
             {openTasks.map((t) => (
-              <div key={t.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="font-medium text-slate-700">{t.description}</p>
-                {t.dueDate && <p className="text-sm text-slate-400">Due {formatDate(t.dueDate)}</p>}
+              <div key={t.id} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                <div className="flex-1">
+                  <p className="font-medium text-slate-700">{t.description}</p>
+                  {t.dueDate && <p className="text-sm text-slate-400">Due {formatDate(t.dueDate)}</p>}
+                </div>
+                <button
+                  onClick={async () => {
+                    await setTaskStatus(t.id, 'done');
+                    await load();
+                  }}
+                  className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-100"
+                >
+                  ✓ Done
+                </button>
               </div>
             ))}
           </div>
