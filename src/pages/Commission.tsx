@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { listCommissions, addCommission, updateCommission, deleteCommission, listPipeline, addPipelineEntry, updatePipelineEntry, deletePipelineEntry } from '../db/commission';
-import { year1CommissionAmount, ytdFyc, tierRangeLabel, tierCommissionLabel, exportCommissionCsv, COMMISSION_PAYMENTS_PER_YEAR } from '../lib/commission';
+import { year1CommissionAmount, ytdFyc, tierRangeLabel, tierCommissionLabel, exportCommissionCsv, commissionPctForYear, COMMISSION_PAYMENTS_PER_YEAR } from '../lib/commission';
 import { newId } from '../lib/id';
 import { formatDate } from '../lib/age';
 import { formatCurrency } from '../lib/coverageGap';
@@ -104,6 +104,7 @@ export default function Commission() {
   const [pipeForm, setPipeForm] = useState({ clientName: '', product: '', amount: '', closeDate: '', status: 'Proposed' as PipelineStatus });
   const [statementUrl, setStatementUrl] = useState<string | null>(null);
   const [statementName, setStatementName] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = async () => {
     setEntries(await listCommissions());
@@ -299,15 +300,35 @@ export default function Commission() {
         {entries.length === 0 ? (
           <p className="text-slate-400">No commission logged yet.</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {entries.map((e) => {
               const patch = async (fields: Partial<CommissionEntry>) => {
                 const updated = { ...e, ...fields };
                 setEntries((prev) => prev.map((x) => (x.id === e.id ? updated : x)));
                 await updateCommission(updated);
               };
+              const expanded = expandedId === e.id;
+              const year1Pct = commissionPctForYear(e.rateTiers, 1);
+
+              if (!expanded) {
+                return (
+                  <div
+                    key={e.id}
+                    onClick={() => setExpandedId(e.id)}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 px-4 py-2.5 text-sm hover:bg-slate-50"
+                  >
+                    <span className="w-24 shrink-0 text-slate-400">{formatDate(e.date)}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
+                      {e.clientName || 'Unnamed'} {e.product && <span className="font-normal text-slate-400">— {e.product}</span>}
+                    </span>
+                    <span className="shrink-0 text-slate-500">Yr1 {year1Pct}%</span>
+                    <span className="w-24 shrink-0 text-right font-bold text-emerald-600">{formatCurrency(year1CommissionAmount(e))}</span>
+                  </div>
+                );
+              }
+
               return (
-                <div key={e.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 p-4">
+                <div key={e.id} className="flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-[150px_1fr_1fr]">
                     <DateInput value={e.date.slice(0, 10)} onChange={(v) => patch({ date: new Date(v).toISOString() })} />
                     <input value={e.clientName} onChange={(ev) => patch({ clientName: ev.target.value })} placeholder="Client" className="input" />
@@ -335,7 +356,7 @@ export default function Commission() {
                     <p className="mb-1 text-xs font-semibold text-slate-500">Commission rate by policy year</p>
                     <TierRows tiers={e.rateTiers} onChange={(rateTiers) => patch({ rateTiers })} />
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white px-3 py-2 text-sm">
                     {e.rateTiers
                       .slice()
                       .sort((a, b) => a.fromYear - b.fromYear)
@@ -347,8 +368,13 @@ export default function Commission() {
                           </strong>
                         </span>
                       ))}
-                    <button onClick={async () => { await deleteCommission(e.id); await load(); }} className="ml-auto text-slate-300 hover:text-rose-500">
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <button onClick={async () => { await deleteCommission(e.id); await load(); }} className="text-sm font-semibold text-rose-500 hover:text-rose-600">
                       ✕ Delete
+                    </button>
+                    <button onClick={() => setExpandedId(null)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                      Done
                     </button>
                   </div>
                 </div>
