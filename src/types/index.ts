@@ -2,6 +2,8 @@ export type UUID = string;
 
 export type CoverageCategory =
   | 'hospital'
+  | 'hospitalRider'
+  | 'hospitalCash'
   | 'ci'
   | 'earlyCi'
   | 'death'
@@ -11,7 +13,9 @@ export type CoverageCategory =
   | 'investment';
 
 export const COVERAGE_CATEGORY_LABELS: Record<CoverageCategory, string> = {
-  hospital: 'Hospital Plan',
+  hospital: 'Hospital Plan (Main / IP)',
+  hospitalRider: 'Hospital Rider',
+  hospitalCash: 'Hospital Cash',
   ci: 'Critical Illness (CI)',
   earlyCi: 'Early / Intermediate CI',
   death: 'Death (Life Coverage)',
@@ -23,6 +27,8 @@ export const COVERAGE_CATEGORY_LABELS: Record<CoverageCategory, string> = {
 
 export const COVERAGE_CATEGORIES: CoverageCategory[] = [
   'hospital',
+  'hospitalRider',
+  'hospitalCash',
   'ci',
   'earlyCi',
   'death',

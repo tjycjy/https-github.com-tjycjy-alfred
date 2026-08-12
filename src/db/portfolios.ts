@@ -7,6 +7,16 @@ export function emptyCoverage(): CoverageItem[] {
   return COVERAGE_CATEGORIES.map((category) => ({ category, target: 0, inForce: 0, premium: 0, notes: '' }));
 }
 
+// Portfolios saved before a new CoverageCategory was introduced (e.g. Hospital Rider / Hospital
+// Cash) are missing those entries entirely — backfill them with zeroed defaults on load so older
+// client data never crashes the newer per-category UI.
+function normalizeCoverage(coverage: CoverageItem[]): CoverageItem[] {
+  const byCategory = new Map(coverage.map((c) => [c.category, c]));
+  return COVERAGE_CATEGORIES.map(
+    (category) => byCategory.get(category) ?? { category, target: 0, inForce: 0, premium: 0, notes: '' },
+  );
+}
+
 export async function getPortfolioForClient(clientId: string): Promise<Portfolio> {
   const db = await getDb();
   const existing = await db.getFromIndex('portfolios', 'clientId', clientId);
@@ -15,7 +25,7 @@ export async function getPortfolioForClient(clientId: string): Promise<Portfolio
       ...existing,
       people: existing.people.map((person) => ({
         ...person,
-        coverage: person.coverage.map((c) => ({ ...c, premium: c.premium ?? 0 })),
+        coverage: normalizeCoverage(person.coverage.map((c) => ({ ...c, premium: c.premium ?? 0 }))),
       })),
     };
   }

@@ -9,6 +9,8 @@ import { ProgressRing } from '../../components/ui/ProgressRing';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { SliderInput } from '../../components/ui/SliderInput';
 import { HospitalPlanEditor } from '../../components/portfolio/HospitalPlanEditor';
+import { LtcPremiumEditor } from '../../components/portfolio/LtcPremiumEditor';
+import { estimateIpMedisaveSplit, IP_RIDER_MEDISAVE_NOTE, HOSPITAL_CASH_MEDISAVE_NOTE } from '../../lib/calculators/medisave';
 import { useClientTab } from './ClientTabContext';
 import type { Portfolio, PortfolioPerson, CoverageCategory } from '../../types';
 
@@ -192,18 +194,49 @@ export default function PortfolioTab() {
                     </span>
                   </div>
                   <ProgressBar ratio={gap.ratio} status={gap.status} />
-                  <div className="mt-3">
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">Annual Premium</label>
-                    <input
-                      type="number"
-                      value={item.premium}
-                      onChange={(e) =>
-                        updatePersonCoverage(selectedPerson.personId, item.category, { premium: Number(e.target.value) })
-                      }
-                      className="input"
-                      placeholder="0"
-                    />
-                  </div>
+                  {item.category !== 'ltc' && (
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Annual Premium</label>
+                      <input
+                        type="number"
+                        value={item.premium}
+                        onChange={(e) =>
+                          updatePersonCoverage(selectedPerson.personId, item.category, { premium: Number(e.target.value) })
+                        }
+                        className="input"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+                  {item.category === 'hospital' && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-emerald-50 p-3">
+                      {(() => {
+                        const split = estimateIpMedisaveSplit(item.premium, clientAge);
+                        return (
+                          <>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">MediSave-payable</p>
+                              <p className="text-lg font-bold text-emerald-700">{formatCurrency(split.medisavePayable)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cash outlay</p>
+                              <p className="text-lg font-bold text-slate-700">{formatCurrency(split.cashPortion)}</p>
+                            </div>
+                            <p className="col-span-2 text-[11px] text-slate-400">
+                              {clientAge === null
+                                ? 'Add a date of birth in Basic Info to estimate the MediSave-payable portion.'
+                                : `Estimated from MediShield Life's premium schedule plus the age-banded Additional Withdrawal Limit for ${client.name}'s age — verify the exact split against the policy schedule.`}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {(item.category === 'hospitalRider' || item.category === 'hospitalCash') && (
+                    <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+                      🚫 {item.category === 'hospitalRider' ? IP_RIDER_MEDISAVE_NOTE : HOSPITAL_CASH_MEDISAVE_NOTE}
+                    </p>
+                  )}
                   {item.category === 'hospital' ? (
                     <div className="mt-4">
                       <HospitalPlanEditor
@@ -213,6 +246,51 @@ export default function PortfolioTab() {
                         onChange={(patch) => updatePersonCoverage(selectedPerson.personId, item.category, patch)}
                       />
                     </div>
+                  ) : item.category === 'ltc' ? (
+                    <>
+                      <LtcPremiumEditor
+                        premium={item.premium}
+                        notes={item.notes}
+                        onChange={(patch) => updatePersonCoverage(selectedPerson.personId, item.category, patch)}
+                      />
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-500">Target</label>
+                          <input
+                            type="number"
+                            value={item.target}
+                            onChange={(e) =>
+                              updatePersonCoverage(selectedPerson.personId, item.category, { target: Number(e.target.value) })
+                            }
+                            className="input"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-500">In Force</label>
+                          <input
+                            type="number"
+                            value={item.inForce}
+                            onChange={(e) =>
+                              updatePersonCoverage(selectedPerson.personId, item.category, { inForce: Number(e.target.value) })
+                            }
+                            className="input"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <SliderInput
+                          label="Adjust In Force live"
+                          value={item.inForce}
+                          min={0}
+                          max={Math.ceil(sliderMax / 1000) * 1000 || 100000}
+                          step={1000}
+                          format={formatCurrency}
+                          onChange={(value) =>
+                            updatePersonCoverage(selectedPerson.personId, item.category, { inForce: value })
+                          }
+                        />
+                      </div>
+                    </>
                   ) : (
                     <>
                       <div className="mt-4 grid grid-cols-2 gap-3">
