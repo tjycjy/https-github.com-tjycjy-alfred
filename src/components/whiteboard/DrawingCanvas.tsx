@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
-export type DrawTool = 'pen' | 'eraser';
+export type DrawTool = 'pen' | 'eraser' | 'line';
 
 export interface DrawingCanvasHandle {
   clear: () => void;
@@ -132,8 +132,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
 
     const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!activeStrokeRef.current) return;
-      activeStrokeRef.current.points.push(getPos(e));
+      const stroke = activeStrokeRef.current;
+      if (!stroke) return;
+      if (stroke.tool === 'line') {
+        // straight-line tool: keep only the start point and replace the end point on every
+        // move, so the line stays straight instead of following the pointer's actual path
+        stroke.points = [stroke.points[0], getPos(e)];
+      } else {
+        stroke.points.push(getPos(e));
+      }
       redraw();
     };
 

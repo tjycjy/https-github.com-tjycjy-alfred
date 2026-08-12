@@ -4,6 +4,8 @@ import { pdfjsLib } from '../lib/pdfjs';
 import { DrawingCanvas, type DrawingCanvasHandle, type DrawTool } from '../components/whiteboard/DrawingCanvas';
 import { PdfPageCanvas } from '../components/whiteboard/PdfPageCanvas';
 import { Toolbar } from '../components/whiteboard/Toolbar';
+import { StampLayer, type Stamp } from '../components/whiteboard/StampLayer';
+import { newId } from '../lib/id';
 import { listBrochures, addBrochure, touchBrochure, deleteBrochure } from '../db/brochures';
 import { formatDate } from '../lib/age';
 import { useTheme } from '../state/ThemeContext';
@@ -46,6 +48,14 @@ export default function Whiteboard() {
   const pdfAnnotationRef = useRef<DrawingCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [stamps, setStamps] = useState<Stamp[]>([]);
+  const addStamp = (emoji: string) => {
+    const count = stamps.length;
+    setStamps((prev) => [...prev, { id: newId(), emoji, x: 140 + (count % 5) * 50, y: 120 + Math.floor(count / 5) * 50 }]);
+  };
+  const moveStamp = (id: string, x: number, y: number) => setStamps((prev) => prev.map((s) => (s.id === id ? { ...s, x, y } : s)));
+  const removeStamp = (id: string) => setStamps((prev) => prev.filter((s) => s.id !== id));
+
   const loadBrochures = async () => setBrochures(await listBrochures());
 
   useEffect(() => {
@@ -69,11 +79,13 @@ export default function Whiteboard() {
     setMode('pdf');
     setShowShelf(false);
     pdfAnnotationRef.current?.clear();
+    setStamps([]);
   };
 
   const clear = () => {
     if (mode === 'blank') blankCanvasRef.current?.clear();
     else pdfAnnotationRef.current?.clear();
+    setStamps([]);
   };
 
   const exportPng = () => {
@@ -106,6 +118,7 @@ export default function Whiteboard() {
         setThickness={setThickness}
         onClear={clear}
         onExport={exportPng}
+        onAddStamp={addStamp}
         extra={
           <>
             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
@@ -198,19 +211,23 @@ export default function Whiteboard() {
 
       <div className="flex-1 overflow-auto bg-slate-200">
         {mode === 'blank' ? (
-          <DrawingCanvas
-            ref={blankCanvasRef}
-            color={color}
-            thickness={thickness}
-            tool={tool}
-            bgColor={resolvedDark ? DARK_BG : LIGHT_BG}
-          />
+          <div className="relative h-full w-full">
+            <DrawingCanvas
+              ref={blankCanvasRef}
+              color={color}
+              thickness={thickness}
+              tool={tool}
+              bgColor={resolvedDark ? DARK_BG : LIGHT_BG}
+            />
+            <StampLayer stamps={stamps} onMove={moveStamp} onRemove={removeStamp} />
+          </div>
         ) : pdfDoc ? (
           <div className="relative mx-auto my-4" style={{ width: pdfSize.width, height: pdfSize.height }}>
             <PdfPageCanvas pdfDoc={pdfDoc} pageNumber={pageNumber} onSize={setPdfSize} />
             <div className="absolute inset-0">
               <DrawingCanvas ref={pdfAnnotationRef} color={color} thickness={thickness} tool={tool} transparent />
             </div>
+            <StampLayer stamps={stamps} onMove={moveStamp} onRemove={removeStamp} />
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">

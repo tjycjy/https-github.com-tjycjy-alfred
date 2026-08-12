@@ -1,4 +1,5 @@
 import type { DrawTool } from './DrawingCanvas';
+import { STAMP_OPTIONS } from './StampLayer';
 
 const COLORS = ['#0f172a', '#f8fafc', '#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea'];
 
@@ -11,6 +12,7 @@ export function Toolbar({
   setThickness,
   onClear,
   onExport,
+  onAddStamp,
   extra,
 }: {
   tool: DrawTool;
@@ -21,6 +23,7 @@ export function Toolbar({
   setThickness: (t: number) => void;
   onClear: () => void;
   onExport: () => void;
+  onAddStamp?: (emoji: string) => void;
   extra?: React.ReactNode;
 }) {
   return (
@@ -33,12 +36,34 @@ export function Toolbar({
           ✏️ Pen
         </button>
         <button
+          onClick={() => setTool('line')}
+          title="Draw a straight line — handy for timelines"
+          className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${tool === 'line' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+        >
+          📏 Line
+        </button>
+        <button
           onClick={() => setTool('eraser')}
           className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${tool === 'eraser' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
         >
           🧹 Eraser
         </button>
       </div>
+
+      {onAddStamp && (
+        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+          {STAMP_OPTIONS.map((s) => (
+            <button
+              key={s.emoji}
+              onClick={() => onAddStamp(s.emoji)}
+              title={`Add ${s.label} — drag to reposition`}
+              className="rounded-lg px-2.5 py-2 text-lg hover:bg-white"
+            >
+              {s.emoji}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-1.5">
         {COLORS.map((c) => (
